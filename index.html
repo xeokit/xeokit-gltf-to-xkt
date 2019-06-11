@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+
+    <script src="./lib/pako.js"></script>
+
+</head>
+<body>
+<script type="module">
+
+    import {Model} from "./src/Model.js";
+    import {parseGLTFIntoModel} from "./src/parseGLTFIntoModel.js";
+    import {serializeModelToArrayBuffer} from "./src/serializeModelToArrayBuffer.js";
+
+    convert("./models/gltf/OTCConferenceCenter/scene.gltf", "./models/xeokit/otcConferenceCenter");
+    convert("./models/gltf/schependomlaan/scene.gltf", "./models/xeokit/schependomlaan");
+    convert("./models/gltf/gearbox/scene.gltf", "./models/xeokit/gearbox");
+
+    function convert(gltfSrc, xeokitSrc) {
+
+        console.log('[INFO] Converting model:' + gltfSrc);
+
+        loadJSON(gltfSrc, function(gltf) {
+            const model = new Model();
+            parseGLTFIntoModel(gltf, model);
+            const arrayBuffer = serializeModelToArrayBuffer(model);
+            console.log(arrayBuffer.length);
+        });
+    }
+
+    function loadJSON(url, ok, err) {
+        // Avoid checking ok and err on each use.
+        var defaultCallback = (_value) => undefined;
+        ok = ok || defaultCallback;
+        err = err || defaultCallback;
+
+        var request = new XMLHttpRequest();
+        request.overrideMimeType("application/json");
+        request.open('GET', url, true);
+        request.addEventListener('load', function (event) {
+            var response = event.target.response;
+            if (this.status === 200) {
+                var json;
+                try {
+                    json = JSON.parse(response);
+                } catch (e) {
+                    err(`utils.loadJSON(): Failed to parse JSON response - ${e}`);
+                }
+                ok(json);
+            } else if (this.status === 0) {
+                // Some browsers return HTTP Status 0 when using non-http protocol
+                // e.g. 'file://' or 'data://'. Handle as success.
+                console.warn('loadFile: HTTP Status 0 received.');
+                try {
+                    ok(JSON.parse(response));
+                } catch (e) {
+                    err(`utils.loadJSON(): Failed to parse JSON response - ${e}`);
+                }
+            } else {
+                err(event);
+            }
+        }, false);
+
+        request.addEventListener('error', function (event) {
+            err(event);
+        }, false);
+        request.send(null);
+    }
+
+</script>
+</body>
+</html>
