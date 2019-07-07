@@ -28,7 +28,7 @@
   "description": "",
   "main": "start.js",
   "directories": {
-    "lib": "lib"
+    "lib": "src/lib"
   },
   "repository": {
     "type": "git",
