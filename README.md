@@ -1,5 +1,12 @@
 # xeokit-gltf-to-xkt
 
+## Contents
+ - [Overview](#overview)
+ - [Credits](#credits)
+ - [Usage](#usage)
+ - [Work Remaining](#work-remaining)
+  
+## Overview
 **xeokit-gltf-to-xkt** converts models from glTF 2.0 to [xeokit](http://xeokit.io)'s optimized ````.xkt```` format.
 
 An ````.xkt```` file is a single BLOB containing a model, compressed using geometry quantization and pako.
@@ -115,3 +122,7 @@ const model = xktLoader.load({
     edges: true
 });
 ````
+
+## Work Remaining
+
+At present, ````xeokit-gltf-to-xkt```` only works with glTF 2.0 models that have base-64 geometry buffers embedded within the glTF JSON.  
