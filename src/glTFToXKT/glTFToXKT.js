@@ -17,7 +17,7 @@ const glTFToXKT = (gltfSrc, xeokitSrc) => {
 
     fs.appendFile(xeokitSrc, new Buffer(arrayBuffer), (err) => {
         if (err) {
-            console.error(err);
+            console.error("fs.appendFile: " + err);
         }
     });
 };
