@@ -21,7 +21,15 @@ The ````xeokit-gltf-to-xkt```` tool and the  [XKTLoaderPlugin](https://xeokit.gi
 
 ## Usage
 
-First, put your glTF files in the ````./models/glTF```` directory. 
+First, clone this repository and install dependencies:
+
+````
+git clone https://github.com/xeokit/xeokit-gltf-to-xkt.git
+cd xeokit-gltf-to-xkt.git
+npm install
+````
+
+Then put your glTF files in the ````./models/glTF```` directory. 
 
 For demo purposes, we already have these models:
 
