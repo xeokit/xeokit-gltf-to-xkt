@@ -9,14 +9,14 @@
 ## Overview
 **xeokit-gltf-to-xkt** converts models from glTF 2.0 to [xeokit](http://xeokit.io)'s optimized ````.xkt```` format.
 
-An ````.xkt```` file is a single BLOB containing a model, compressed using geometry quantization and pako.
+An ````.xkt```` file is a single BLOB containing a model, compressed using geometry quantization and zlib. See the [XKT Format](https://github.com/xeokit/xeokit-sdk/wiki/XKT-Format) specification for a more detailed description of the ````.xkt```` format.
 
 
 Once you have ````.xkt```` files, you can load them into your viewer using  [XKTLoaderPlugin](https://xeokit.github.io/xeokit-sdk/docs/class/src/plugins/XKTLoaderPlugin/XKTLoaderPlugin.js~XKTLoaderPlugin.html), which is the most 
 efficient way to load high-detail models into xeokit.
  
 
-Click the screenshot below for a demo of the XKTLoaderPlugin.
+Click on the screenshot below for a live demo of the XKTLoaderPlugin.
 
 <a href="https://xeokit.github.io/xeokit-sdk/examples/#loading_XKT_OTCConferenceCenter"><img src="http://xeokit.io/img/docs/XKTLoaderPlugin/XKTLoaderPlugin.png"></a>
  
