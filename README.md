@@ -51,7 +51,7 @@ models
         └── scene.gltf
 ````
 
-Next, add ````glTFToXKT()```` calls to ````./src/converter.js````, to convert the models:
+Next, add ````glTFToXKT()```` calls to ````./converter.js````, to convert the models:
 
 
 ````javascript
