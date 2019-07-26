@@ -1,128 +1,102 @@
-# xeokit-gltf-to-xkt
+# xeokit's gltf2xkt
 
 ## Contents
+
  - [Overview](#overview)
  - [Credits](#credits)
  - [Usage](#usage)
  - [Work Remaining](#work-remaining)
   
 ## Overview
-**xeokit-gltf-to-xkt** converts models from glTF 2.0 to [xeokit](http://xeokit.io)'s optimized ````.xkt```` format.
+**xeokit-gltf-to-xkt** converts models from glTF 2.0 to 
+[xeokit](http://xeokit.io)'s optimized ````.xkt```` format.
 
-An ````.xkt```` file is a single BLOB containing a model, compressed using geometry quantization and zlib. See the [XKT Format](https://github.com/xeokit/xeokit-sdk/wiki/XKT-Format) specification for a more detailed description of the ````.xkt```` format.
+An ````.xkt```` file is a single BLOB containing a model, compressed using 
+geometry quantization and zlib. 
+See the [XKT Format](https://github.com/xeokit/xeokit-sdk/wiki/XKT-Format) 
+specification for a more detailed description of the ````.xkt```` format.
 
 
-Once you have ````.xkt```` files, you can load them into your viewer using  [XKTLoaderPlugin](https://xeokit.github.io/xeokit-sdk/docs/class/src/plugins/XKTLoaderPlugin/XKTLoaderPlugin.js~XKTLoaderPlugin.html), which is the most 
-efficient way to load high-detail models into xeokit.
+Once you have ````.xkt```` files, you can load them into your viewer using 
+[XKTLoaderPlugin](https://xeokit.github.io/xeokit-sdk/docs/class/src/plugins/XKTLoaderPlugin/XKTLoaderPlugin.js~XKTLoaderPlugin.html), 
+which is the most efficient way to load high-detail models into xeokit.
  
-
 Click on the screenshot below for a live demo of the XKTLoaderPlugin.
 
-<a href="https://xeokit.github.io/xeokit-sdk/examples/#loading_XKT_OTCConferenceCenter"><img src="http://xeokit.io/img/docs/XKTLoaderPlugin/XKTLoaderPlugin.png"></a>
+<a href="https://xeokit.github.io/xeokit-sdk/examples/#loading_XKT_OTCConferenceCenter">
+    <img src="http://xeokit.io/img/docs/XKTLoaderPlugin/XKTLoaderPlugin.png">
+</a>
  
 [[Run this example](https://xeokit.github.io/xeokit-sdk/examples/#loading_XKT_OTCConferenceCenter)]
 
-## Credits
-
-The ````xeokit-gltf-to-xkt```` tool and the  [XKTLoaderPlugin](https://xeokit.github.io/xeokit-sdk/docs/class/src/plugins/XKTLoaderPlugin/XKTLoaderPlugin.js~XKTLoaderPlugin.html) are based on prototypes by [Toni Marti](https://github.com/tmarti) at [uniZite](https://www.unizite.com/login). Find the original discussion around those prototypes [here](https://github.com/xeokit/xeokit-sdk/issues/48#).
-
 ## Usage
 
-First, clone this repository and install dependencies:
+### CLI
 
-````
-git clone https://github.com/xeokit/xeokit-gltf-to-xkt.git
-cd xeokit-gltf-to-xkt.git
-npm install
-````
+Install locally or globally from `npm`.
 
-Then put your glTF files in the ````./models/glTF```` directory. 
+```bash
+$ npm install gltf2xkt -g
+```
 
-For demo purposes, we already have these models:
+```bash
+$ gltf2xkt --help
 
-````
-models
-└── gltf
-    ├── duplex
-    │   └── scene.gltf
-    ├── OTCConferenceCenter
-    │   └── scene.gltf
-    └── schependomlaan
-        └── scene.gltf
-````
+Usage: gltf2xkt [options]
 
-Next, add ````glTFToXKT()```` calls to ````./converter.js````, to convert the models:
+Options:
+  -v, --version        output the version number
+  -s, --source [file]  The path to the source gltf file.
+  -o, --output [file]  The path to the target xkt file.
+  -h, --help           output usage information
+```
 
+### Programmatically
 
-````javascript
-import {glTFToXKT} from "./glTFToXKT/glTFToXKT.js";
+```javascript
+const Converter = require('gltf2xkt');
 
-glTFToXKT("./models/gltf/OTCConferenceCenter/scene.gltf", "./models/xkt/OTCConferenceCenter.xkt");
-glTFToXKT("./models/gltf/schependomlaan/scene.gltf", "./models/xkt/schependomlaan.xkt");
-glTFToXKT("./models/gltf/duplex/scene.gltf", "./models/xkt/duplex.xkt");
-````
+const gltfPath = '../bimspot/_sample-data/scene.gltf';
+const xktPath = 'scene.xkt';
+const gltf2xkt = new Converter(gltfPath, xktPath);
 
-Now run the tool from the project root directory:
+gltf2xkt
+  .convert()
+  .then(() => {
+    console.log('Success');
+  })
+  .catch((error) => {
+    console.error('Something went wrong:', error);
+  });
+```
 
-````
-node start.js
-````
+## Development
 
-That's going to call ````./converter.js````, which converts our models.
+```bash
+// Clone the repo
+$ git clone https://github.com/xeokit/xeokit-gltf-to-xkt
+$ cd xeokit-gltf-to-xkt
 
-In the console, you should see:
+// Install the dependencies
+$ npm install
 
-````
-[INFO] Converting glTF ./models/gltf/OTCConferenceCenter/scene.gltf to ./models/xkt/OTCConferenceCenter.xkt
-arrayBuffer takes 8313.915 kB
-[INFO] Converting glTF ./models/gltf/schependomlaan/scene.gltf to ./models/xkt/schependomlaan.xkt
-arrayBuffer takes 1679.650 kB
-[INFO] Converting glTF ./models/gltf/duplex/scene.gltf to ./models/xkt/duplex.xkt
-arrayBuffer takes 199.306 kB
-````
+// Link for command line usage
+$ npm link
 
-Once converted, our ````.xkt```` models will appear in the ````models/xkt```` directory:
+// Use global symlink for testing
+$ gltf2xkt -s /path/to/scene.gltf -o /path/to/scene.xkt
+```
 
-````
-models
-├── gltf
-│   ├── duplex
-│   │   └── scene.gltf
-│   ├── gearbox
-│   │   └── scene.gltf
-│   ├── OTCConferenceCenter
-│   │   └── scene.gltf
-│   └── schependomlaan
-│       └── scene.gltf
-└── xkt
-    ├── duplex.xkt
-    ├── OTCConferenceCenter.xkt
-    └── schependomlaan.xkt
+See `.eslint` and `.prettierrc` for code style guide.
 
-````
+## Credits
 
-Finally, use the [XKTLoaderPlugin](https://xeokit.github.io/xeokit-sdk/docs/class/src/plugins/XKTLoaderPlugin/XKTLoaderPlugin.js~XKTLoaderPlugin.html) to load the ````.xkt```` models into your xeokit viewer:
-
-````javascript
-const viewer = new Viewer({
-      canvasId: "myCanvas",
-      transparent: true
-});
-
-viewer.camera.eye = [-2.56, 8.38, 8.27];
-viewer.camera.look = [13.44, 3.31, -14.83];
-viewer.camera.up = [0.10, 0.98, -0.14];
-
-const xktLoader = new XKTLoaderPlugin(viewer);
-
-const model = xktLoader.load({ 
-    id: "myModel",
-    src: "./models/xkt/schependomlaan/schependomlaan.xkt",
-    metaModelSrc: "./metaModels/schependomlaan/metaModel.json",
-    edges: true
-});
-````
+The ````xeokit-gltf-to-xkt```` tool and the 
+[XKTLoaderPlugin](https://xeokit.github.io/xeokit-sdk/docs/class/src/plugins/XKTLoaderPlugin/XKTLoaderPlugin.js~XKTLoaderPlugin.html) 
+are based on prototypes by [Toni Marti](https://github.com/tmarti) at [uniZite](https://www.unizite.com/login). Find the original discussion around those prototypes [here](https://github.com/xeokit/xeokit-sdk/issues/48#).
 
 ## Work Remaining
 
-At present, ````xeokit-gltf-to-xkt```` only works with glTF 2.0 models that have base-64 geometry buffers embedded within the glTF JSON.  
+* [ ] Publish to `npm`.
+* [ ] At present, ````xeokit-gltf-to-xkt```` only works with glTF 2.0 models that
+have base-64 geometry buffers embedded within the glTF JSON.

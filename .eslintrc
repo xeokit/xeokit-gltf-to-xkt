@@ -1,0 +1,21 @@
+{
+  "extends": [
+    "google"
+  ],
+  "plugins": [
+    "prettier"
+  ],
+  "parserOptions": {
+    "ecmaVersion": 2017
+  },
+  "env": {
+    "es6": true,
+    "browser": false,
+    "node": true
+  },
+  "rules": {
+    "indent": [
+      "error", 2
+    ]
+  }
+}
