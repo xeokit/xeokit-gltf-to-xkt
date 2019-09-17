@@ -30,14 +30,17 @@ const WEBGL_TYPE_SIZES = {
  * @returns {Model} Model parsed from the glTF.
  */
 function glTFToModel(gltf) {
-
     const model = new Model();
 
     const parsingCtx = {
         gltf: gltf,
         model: model,
         numObjects: 0,
-        nodes: []
+        nodes: [],
+        _meshInstancesById: {},
+        _meshIdToPrimitiveIdsCache: {},
+        numOnlyOnceMeshes: 0,
+        numMeshInstances: 0
     };
 
     parseBuffers(parsingCtx);
@@ -47,6 +50,12 @@ function glTFToModel(gltf) {
     parseDefaultScene(parsingCtx);
 
     model.finalize();
+
+    console.log ("Number of objects: " + parsingCtx.numObjects);
+    console.log ("Only once meshes: " + parsingCtx.numOnlyOnceMeshes);
+    console.log ("More than once meshes: " + (parsingCtx.numObjects - parsingCtx.numOnlyOnceMeshes));
+    console.log ("Total mesh instances: " + parsingCtx.numMeshInstances);
+    console.log ("Instancing factor " + ((parsingCtx.numMeshInstances - parsingCtx.numOnlyOnceMeshes) / parsingCtx.numMeshInstances * 100).toFixed(2) + "%");
 
     return model;
 }
@@ -187,7 +196,46 @@ function parseDefaultScene(parsingCtx) {
         error(parsingCtx, "glTF has no default scene");
         return;
     }
+    prepareSceneCountMeshes(parsingCtx, defaultSceneInfo);
     parseScene(parsingCtx, defaultSceneInfo);
+}
+
+function prepareSceneCountMeshes(parsingCtx, sceneInfo) {
+    const nodes = sceneInfo.nodes;
+    if (!nodes) {
+        return;
+    }
+    for (var i = 0, len = nodes.length; i < len; i++) {
+        const glTFNode = parsingCtx.gltf.nodes[nodes[i]];
+        if (glTFNode) {
+            prepareNodeCountMeshes(parsingCtx, glTFNode);
+        }
+    }
+}
+
+function prepareNodeCountMeshes(parsingCtx, glTFNode) {
+
+    const gltf = parsingCtx.gltf;
+
+    if (glTFNode.mesh !== undefined) {
+        if (glTFNode.mesh in parsingCtx._meshInstancesById) {
+            parsingCtx._meshInstancesById [glTFNode.mesh]++;
+        } else {
+            parsingCtx._meshInstancesById [glTFNode.mesh] = 1;
+        }
+    }
+
+    if (glTFNode.children) {
+        const children = glTFNode.children;
+        for (let i = 0, len = children.length; i < len; i++) {
+            const childNodeIdx = children[i];
+            const childGLTFNode = gltf.nodes[childNodeIdx];
+            if (!childGLTFNode) {
+                continue;
+            }
+            prepareNodeCountMeshes(parsingCtx, childGLTFNode);
+        }
+    }
 }
 
 function parseScene(parsingCtx, sceneInfo) {
@@ -247,41 +295,65 @@ function parseNode(parsingCtx, glTFNode, matrix) {
     }
 
     if (glTFNode.mesh !== undefined) {
-
         const meshInfo = gltf.meshes[glTFNode.mesh];
 
         if (meshInfo) {
+            let meshOnlyUsedOnce = (parsingCtx._meshInstancesById [glTFNode.mesh] === 1);
+
+            var meshMatrix, entityMatrix;
+
+            if (meshOnlyUsedOnce) {
+                meshMatrix = matrix ? matrix.slice() : math.identityMat4();
+                entityMatrix = math.identityMat4();
+            } else {
+                meshMatrix = math.identityMat4();
+                entityMatrix = matrix ? matrix.slice() : math.identityMat4();
+            }
 
             const numPrimitives = meshInfo.primitives.length;
 
             if (numPrimitives > 0) {
+                if (!(glTFNode.mesh in parsingCtx._meshIdToPrimitiveIdsCache)) {
+                    const meshIds = [];
 
-                const meshIds = [];
+                    for (let i = 0; i < numPrimitives; i++) {
 
-                for (let i = 0; i < numPrimitives; i++) {
+                        const primitiveInfo = meshInfo.primitives[i];
+                        const materialIndex = primitiveInfo.material;
+                        const materialInfo = (materialIndex !== null && materialIndex !== undefined) ? gltf.materials[materialIndex] : null;
 
-                    const primitiveInfo = meshInfo.primitives[i];
-                    const materialIndex = primitiveInfo.material;
-                    const materialInfo = (materialIndex !== null && materialIndex !== undefined) ? gltf.materials[materialIndex] : null;
-                    const meshCfg = {
-                        id: model.id + "." + parsingCtx.numObjects++,
-                        matrix: matrix ? matrix.slice() : math.identityMat4(),
-                        color: materialInfo ? materialInfo._rgbaColor : new Float32Array([1.0, 1.0, 1.0, 1.0]),
-                        opacity: materialInfo ? materialInfo._rgbaColor[3] : 1.0
-                    };
+                        const meshCfg = {
+                            id: model.id + "." + parsingCtx.numObjects,
+                            matrix: meshMatrix,
+                            color: materialInfo ? materialInfo._rgbaColor : new Float32Array([1.0, 1.0, 1.0, 1.0]),
+                            opacity: materialInfo ? materialInfo._rgbaColor[3] : 1.0,
+                        };
 
-                    parsePrimitiveGeometry(parsingCtx, primitiveInfo, meshCfg);
+                        parsePrimitiveGeometry(parsingCtx, primitiveInfo, meshCfg);
 
-                    model.createMesh(meshCfg);
+                        model.createMesh(meshCfg);
 
-                    meshIds.push(meshCfg.id);
+                        meshIds.push (parsingCtx.numObjects);
+
+                        parsingCtx.numObjects++
+                    }
+
+                    parsingCtx._meshIdToPrimitiveIdsCache [glTFNode.mesh] = meshIds;
                 }
 
                 model.createEntity({
                     id: glTFNode.name,
                     isObject: (!!glTFNode.name),
-                    meshIds: meshIds
+                    meshIds: parsingCtx._meshIdToPrimitiveIdsCache [glTFNode.mesh],
+                    matrix: entityMatrix,
+                    usesInstancing: !meshOnlyUsedOnce,
                 });
+
+                if (meshOnlyUsedOnce) {
+                    parsingCtx.numOnlyOnceMeshes++;
+                } else {
+                    parsingCtx.numMeshInstances += parsingCtx._meshIdToPrimitiveIdsCache [glTFNode.mesh].length;
+                }
             }
         }
     }
