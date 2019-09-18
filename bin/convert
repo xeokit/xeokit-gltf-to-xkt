@@ -1,0 +1,28 @@
+#!/usr/bin/env node
+
+const fs = require('fs');
+const { glTFToXKT } = require('../src/index.js');
+
+const [,, gltfPath, xktPath] = process.argv;
+
+const help = 'Usage: npm run convert GLTF_PATH XKT_PATH';
+
+if (!gltfPath) {
+  console.error('Missing GLTF_PATH');
+  console.error(help);
+  process.exit(1);
+}
+
+if (!xktPath) {
+  console.error('Missing XKT_PATH');
+  console.error(help);
+  process.exit(1);
+}
+
+console.info(`[INFO] Converting glTF ${gltfPath} to xkt ${xktPath}`)
+
+const gltf = fs.readFileSync(gltfPath);
+
+const xkt = glTFToXKT(gltf);
+
+fs.writeFileSync(xktPath, xkt);
