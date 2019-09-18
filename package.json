@@ -3,8 +3,8 @@
   "version": "0.0.1",
   "private": false,
   "scripts": {
-    "start": "node start.js",
-    "test": "node tests/index.js"
+    "test": "node tests/index.js",
+    "convert": "node bin/convert"
   },
   "dependencies": {
     "atob": "^2.1.2",
@@ -30,5 +30,8 @@
   "author": "Lindsay Kay",
   "files": [
     "src"
-  ]
+  ],
+  "bin": {
+    "xkt-convert": "./bin/convert"
+  }
 }
