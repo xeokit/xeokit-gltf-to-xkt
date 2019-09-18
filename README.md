@@ -51,23 +51,6 @@ models
         └── scene.gltf
 ```
 
-```javascript
-const { glTFToXKT } = require('../src/index.js');
-const fs = require('fs');
-
-let gltf = fs.readFileSync('./models/gltf/OTCConferenceCenter/scene.gltf');
-let xkt = glTFToXKT(gltf);
-fs.writeFileSync('./models/xkt/OTCConferenceCenter.xkt', xkt);
-
-gltf = fs.readFileSync('./models/gltf/schependomlaan/scene.gltf');
-xkt = glTFToXKT(gltf);
-fs.writeFileSync('./models/xkt/schependomlaan.xkt', xkt);
-
-gltf = fs.readFileSync('./models/gltf/duplex/scene.gltf');
-xkt = glTFToXKT(gltf);
-fs.writeFileSync('./models/xkt/duplex.xkt', xkt);
-```
-
 Now run the tool from the project root directory:
 
 ```sh
