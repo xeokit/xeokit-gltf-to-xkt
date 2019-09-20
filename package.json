@@ -29,7 +29,8 @@
   },
   "author": "Lindsay Kay",
   "files": [
-    "src"
+    "src",
+    "bin"
   ],
   "bin": {
     "xkt-convert": "./bin/convert"
