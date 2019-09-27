@@ -306,8 +306,21 @@ function parseNode(parsingCtx, glTFNode, matrix) {
                 meshMatrix = matrix ? matrix.slice() : math.identityMat4();
                 entityMatrix = math.identityMat4();
             } else {
-                meshMatrix = math.identityMat4();
-                entityMatrix = matrix ? matrix.slice() : math.identityMat4();
+                if (meshInfo._firstMatrixInverse === undefined) {
+                    meshInfo._firstMatrixInverse = math.inverseMat4 (
+                        matrix ? matrix.slice() : math.identityMat4()
+                    );
+
+                    meshMatrix = matrix ? matrix.slice() : math.identityMat4();
+                    entityMatrix = math.identityMat4();
+                } else {
+                    meshMatrix = math.identityMat4();
+                    entityMatrix = math.mulMat4 (
+                        matrix ? matrix.slice() : math.identityMat4(),
+                        meshInfo._firstMatrixInverse,
+                        math.identityMat4 ()
+                    );
+                }
             }
 
             const numPrimitives = meshInfo.primitives.length;
