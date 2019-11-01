@@ -35,11 +35,12 @@ Click on the screenshot below for a live demo of the XKTLoaderPlugin.
 
 Install locally or globally from `npm`.
 
-```bash
-$ npm install gltf2xkt -g
+```
+$ npm install xeokit/xeokit-gltf-to-xkt -g
+$ gltf2xkt -s scene.gltf -o scene.xkt
 ```
 
-```bash
+```
 $ gltf2xkt --help
 
 Usage: gltf2xkt [options]
@@ -72,7 +73,7 @@ gltf2xkt
 
 ## Development
 
-```bash
+```
 // Clone the repo
 $ git clone https://github.com/xeokit/xeokit-gltf-to-xkt
 $ cd xeokit-gltf-to-xkt
