@@ -180,4 +180,4 @@ function toArrayBuffer(elements) {
   return dataArray.buffer;
 }
 
-export {modelToXKT};
+module.exports = modelToXKT;

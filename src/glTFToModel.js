@@ -416,4 +416,4 @@ function error(parsingCtx, msg) {
   parsingCtx.error(msg);
 }
 
-export {glTFToModel};
+module.exports = glTFToModel;
