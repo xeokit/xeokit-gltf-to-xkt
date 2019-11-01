@@ -1,8 +1,8 @@
-const math = require('./math');
-const utils = require('./utils');
-const buildEdgeIndices = require('./buildEdgeIndices');
-const Model = require('./Model');
-const atob = require('atob');
+import {math} from "./math.js";
+import {utils} from "./utils.js";
+import {buildEdgeIndices} from './buildEdgeIndices.js';
+import {Model} from "./Model.js";
+import atob from "atob";
 
 const WEBGL_COMPONENT_TYPES = {
   5120: Int8Array,
@@ -10,7 +10,7 @@ const WEBGL_COMPONENT_TYPES = {
   5122: Int16Array,
   5123: Uint16Array,
   5125: Uint32Array,
-  5126: Float32Array,
+  5126: Float32Array
 };
 
 const WEBGL_TYPE_SIZES = {
@@ -20,7 +20,7 @@ const WEBGL_TYPE_SIZES = {
   'VEC4': 4,
   'MAT2': 4,
   'MAT3': 9,
-  'MAT4': 16,
+  'MAT4': 16
 };
 
 /**
@@ -30,7 +30,6 @@ const WEBGL_TYPE_SIZES = {
  * @returns {Model} Model parsed from the glTF.
  */
 function glTFToModel(gltf) {
-
   const model = new Model();
 
   const parsingCtx = {
@@ -38,6 +37,10 @@ function glTFToModel(gltf) {
     model: model,
     numObjects: 0,
     nodes: [],
+    _meshInstancesById: {},
+    _meshIdToPrimitiveIdsCache: {},
+    numOnlyOnceMeshes: 0,
+    numMeshInstances: 0
   };
 
   parseBuffers(parsingCtx);
@@ -47,6 +50,12 @@ function glTFToModel(gltf) {
   parseDefaultScene(parsingCtx);
 
   model.finalize();
+
+  console.log ("Number of objects: " + parsingCtx.numObjects);
+  console.log ("Only once meshes: " + parsingCtx.numOnlyOnceMeshes);
+  console.log ("More than once meshes: " + (parsingCtx.numObjects - parsingCtx.numOnlyOnceMeshes));
+  console.log ("Total mesh instances: " + parsingCtx.numMeshInstances);
+  console.log ("Instancing factor " + ((parsingCtx.numMeshInstances - parsingCtx.numOnlyOnceMeshes) / parsingCtx.numMeshInstances * 100).toFixed(2) + "%");
 
   return model;
 }
@@ -92,7 +101,7 @@ function parseArrayBuffer(parsingCtx, url) {
       return null;
     }
   } else {
-    throw 'Geometry buffer must be included in glTF JSON as data URI';
+    throw "Geometry buffer must be included in glTF JSON as data URI";
   }
 }
 
@@ -140,20 +149,20 @@ function parseMaterialColor(parsingCtx, materialInfo) { // Attempts to extract a
   const color = new Float32Array([1, 1, 1, 1]);
   const extensions = materialInfo.extensions;
   if (extensions) {
-    const specularPBR = extensions['KHR_materials_pbrSpecularGlossiness'];
+    const specularPBR = extensions["KHR_materials_pbrSpecularGlossiness"];
     if (specularPBR) {
       const diffuseFactor = specularPBR.diffuseFactor;
       if (diffuseFactor !== null && diffuseFactor !== undefined) {
         color.set(diffuseFactor);
       }
     }
-    const common = extensions['KHR_materials_common'];
+    const common = extensions["KHR_materials_common"];
     if (common) {
       const technique = common.technique;
       const values = common.values || {};
-      const blinn = technique === 'BLINN';
-      const phong = technique === 'PHONG';
-      const lambert = technique === 'LAMBERT';
+      const blinn = technique === "BLINN";
+      const phong = technique === "PHONG";
+      const lambert = technique === "LAMBERT";
       const diffuse = values.diffuse;
       if (diffuse && (blinn || phong || lambert)) {
         if (!utils.isString(diffuse)) {
@@ -184,10 +193,49 @@ function parseDefaultScene(parsingCtx) {
   const scene = parsingCtx.gltf.scene || 0;
   const defaultSceneInfo = parsingCtx.gltf.scenes[scene];
   if (!defaultSceneInfo) {
-    error(parsingCtx, 'glTF has no default scene');
+    error(parsingCtx, "glTF has no default scene");
     return;
   }
+  prepareSceneCountMeshes(parsingCtx, defaultSceneInfo);
   parseScene(parsingCtx, defaultSceneInfo);
+}
+
+function prepareSceneCountMeshes(parsingCtx, sceneInfo) {
+  const nodes = sceneInfo.nodes;
+  if (!nodes) {
+    return;
+  }
+  for (var i = 0, len = nodes.length; i < len; i++) {
+    const glTFNode = parsingCtx.gltf.nodes[nodes[i]];
+    if (glTFNode) {
+      prepareNodeCountMeshes(parsingCtx, glTFNode);
+    }
+  }
+}
+
+function prepareNodeCountMeshes(parsingCtx, glTFNode) {
+
+  const gltf = parsingCtx.gltf;
+
+  if (glTFNode.mesh !== undefined) {
+    if (glTFNode.mesh in parsingCtx._meshInstancesById) {
+      parsingCtx._meshInstancesById [glTFNode.mesh]++;
+    } else {
+      parsingCtx._meshInstancesById [glTFNode.mesh] = 1;
+    }
+  }
+
+  if (glTFNode.children) {
+    const children = glTFNode.children;
+    for (let i = 0, len = children.length; i < len; i++) {
+      const childNodeIdx = children[i];
+      const childGLTFNode = gltf.nodes[childNodeIdx];
+      if (!childGLTFNode) {
+        continue;
+      }
+      prepareNodeCountMeshes(parsingCtx, childGLTFNode);
+    }
+  }
 }
 
 function parseScene(parsingCtx, sceneInfo) {
@@ -247,41 +295,65 @@ function parseNode(parsingCtx, glTFNode, matrix) {
   }
 
   if (glTFNode.mesh !== undefined) {
-
     const meshInfo = gltf.meshes[glTFNode.mesh];
 
     if (meshInfo) {
+      let meshOnlyUsedOnce = (parsingCtx._meshInstancesById [glTFNode.mesh] === 1);
+
+      var meshMatrix, entityMatrix;
+
+      if (meshOnlyUsedOnce) {
+        meshMatrix = matrix ? matrix.slice() : math.identityMat4();
+        entityMatrix = math.identityMat4();
+      } else {
+        meshMatrix = math.identityMat4();
+        entityMatrix = matrix ? matrix.slice() : math.identityMat4();
+      }
 
       const numPrimitives = meshInfo.primitives.length;
 
       if (numPrimitives > 0) {
+        if (!(glTFNode.mesh in parsingCtx._meshIdToPrimitiveIdsCache)) {
+          const meshIds = [];
 
-        const meshIds = [];
+          for (let i = 0; i < numPrimitives; i++) {
 
-        for (let i = 0; i < numPrimitives; i++) {
+            const primitiveInfo = meshInfo.primitives[i];
+            const materialIndex = primitiveInfo.material;
+            const materialInfo = (materialIndex !== null && materialIndex !== undefined) ? gltf.materials[materialIndex] : null;
 
-          const primitiveInfo = meshInfo.primitives[i];
-          const materialIndex = primitiveInfo.material;
-          const materialInfo = (materialIndex !== null && materialIndex !== undefined) ? gltf.materials[materialIndex] : null;
-          const meshCfg = {
-            id: model.id + '.' + parsingCtx.numObjects++,
-            matrix: matrix ? matrix.slice() : math.identityMat4(),
-            color: materialInfo ? materialInfo._rgbaColor : new Float32Array([1.0, 1.0, 1.0, 1.0]),
-            opacity: materialInfo ? materialInfo._rgbaColor[3] : 1.0,
-          };
+            const meshCfg = {
+              id: model.id + "." + parsingCtx.numObjects,
+              matrix: meshMatrix,
+              color: materialInfo ? materialInfo._rgbaColor : new Float32Array([1.0, 1.0, 1.0, 1.0]),
+              opacity: materialInfo ? materialInfo._rgbaColor[3] : 1.0,
+            };
 
-          parsePrimitiveGeometry(parsingCtx, primitiveInfo, meshCfg);
+            parsePrimitiveGeometry(parsingCtx, primitiveInfo, meshCfg);
 
-          model.createMesh(meshCfg);
+            model.createMesh(meshCfg);
 
-          meshIds.push(meshCfg.id);
+            meshIds.push (parsingCtx.numObjects);
+
+            parsingCtx.numObjects++
+          }
+
+          parsingCtx._meshIdToPrimitiveIdsCache [glTFNode.mesh] = meshIds;
         }
 
         model.createEntity({
           id: glTFNode.name,
           isObject: (!!glTFNode.name),
-          meshIds: meshIds,
+          meshIds: parsingCtx._meshIdToPrimitiveIdsCache [glTFNode.mesh],
+          matrix: entityMatrix,
+          usesInstancing: !meshOnlyUsedOnce,
         });
+
+        if (meshOnlyUsedOnce) {
+          parsingCtx.numOnlyOnceMeshes++;
+        } else {
+          parsingCtx.numMeshInstances += parsingCtx._meshIdToPrimitiveIdsCache [glTFNode.mesh].length;
+        }
       }
     }
   }
@@ -292,7 +364,7 @@ function parseNode(parsingCtx, glTFNode, matrix) {
       const childNodeIdx = children[i];
       const childGLTFNode = gltf.nodes[childNodeIdx];
       if (!childGLTFNode) {
-        error(parsingCtx, 'Node not found: ' + i);
+        error(parsingCtx, "Node not found: " + i);
         continue;
       }
       parseNode(parsingCtx, childGLTFNode, matrix);
@@ -305,7 +377,7 @@ function parsePrimitiveGeometry(parsingCtx, primitiveInfo, result) {
   if (!attributes) {
     return;
   }
-  result.primitive = 'triangles';
+  result.primitive = "triangles";
   const accessors = parsingCtx.gltf.accessors;
   const indicesIndex = primitiveInfo.indices;
   if (indicesIndex !== null && indicesIndex !== undefined) {
@@ -334,7 +406,7 @@ function parseAccessorTypedArray(parsingCtx, accessorInfo) {
   const elementBytes = TypedArray.BYTES_PER_ELEMENT; // For VEC3: itemSize is 3, elementBytes is 4, itemBytes is 12.
   const itemBytes = elementBytes * itemSize;
   if (accessorInfo.byteStride && accessorInfo.byteStride !== itemBytes) { // The buffer is not interleaved if the stride is the item size in bytes.
-    error('interleaved buffer!'); // TODO
+    error("interleaved buffer!"); // TODO
   } else {
     return new TypedArray(bufferViewInfo._buffer, accessorInfo.byteOffset || 0, accessorInfo.count * itemSize);
   }
@@ -344,4 +416,4 @@ function error(parsingCtx, msg) {
   parsingCtx.error(msg);
 }
 
-module.exports = glTFToModel;
+export {glTFToModel};
