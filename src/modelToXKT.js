@@ -1,6 +1,6 @@
 const pako = require('pako');
 
-const XKT_VERSION = 1; // XKT format version
+const XKT_VERSION = 2; // XKT format version
 
 /**
  * Serializes a {@link Model} to an {@link ArrayBuffer}.
@@ -12,7 +12,9 @@ function modelToXKT(model) {
 
   const data = getModelData(model);
   const deflatedData = deflateData(data);
-  return createArrayBuffer(deflatedData);
+  const arrayBuffer = createArrayBuffer(deflatedData);
+
+  return arrayBuffer;
 }
 
 function getModelData(model) {
@@ -35,6 +37,13 @@ function getModelData(model) {
     countEdgeIndices += mesh.edgeIndices.length;
   }
 
+  let countEntityMeshIds = 0;
+
+  for (let i = 0, len = entities.length; i < len; i++) {
+    const entity = entities[i];
+    countEntityMeshIds += entity.meshIds.length;
+  }
+
   const data = {
     positions: new Uint16Array(countPositions),
     normals: new Int8Array(countNormals),
@@ -48,6 +57,9 @@ function getModelData(model) {
     entityMeshes: new Uint32Array(entities.length),
     entityIsObjects: new Uint8Array(entities.length),
     positionsDecodeMatrix: model.positionsDecodeMatrix,
+    entityMeshIds: new Uint32Array(countEntityMeshIds),
+    entityMatrices: new Float32Array(entities.length*16),
+    entityUsesInstancing: new Uint8Array(entities.length)
   };
 
   countPositions = 0;
@@ -91,7 +103,11 @@ function getModelData(model) {
     data.entityIDs [i] = entity.id;
     data.entityMeshes[i] = countEntitiesMeshes;
     data.entityIsObjects [i] = entity.isObject ? 1 : 0;
-    countEntitiesMeshes += entity.meshIds.length;
+    data.entityUsesInstancing [i] = entity.usesInstancing ? 1 : 0;
+    for (let j = 0, lenJ = entity.meshIds.length; j < lenJ; j++) {
+      data.entityMeshIds [countEntitiesMeshes++] = entity.meshIds [j];
+    }
+    data.entityMatrices.set(entity.matrix, i*16);
   }
 
   return data;
@@ -108,12 +124,15 @@ function deflateData(data) {
     meshEdgesIndices: pako.deflate(data.meshEdgesIndices.buffer),
     meshColors: pako.deflate(data.meshColors.buffer),
     entityIDs: pako.deflate(JSON.stringify(data.entityIDs)
-      .replace(/[\u007F-\uFFFF]/g, function(chr) {      // Produce only ASCII-chars, so that the data can be inflated later
-        return '\\u' + ('0000' + chr.charCodeAt(0).toString(16)).substr(-4);
-      })),
+        .replace(/[\u007F-\uFFFF]/g, function (chr) {      // Produce only ASCII-chars, so that the data can be inflated later
+          return "\\u" + ("0000" + chr.charCodeAt(0).toString(16)).substr(-4)
+        })),
     entityMeshes: pako.deflate(data.entityMeshes.buffer),
     entityIsObjects: pako.deflate(data.entityIsObjects),
     positionsDecodeMatrix: pako.deflate(data.positionsDecodeMatrix.buffer),
+    entityMeshIds: pako.deflate(data.entityMeshIds.buffer),
+    entityMatrices: pako.deflate(data.entityMatrices.buffer),
+    entityUsesInstancing: pako.deflate(data.entityUsesInstancing),
   };
 }
 
@@ -131,6 +150,9 @@ function createArrayBuffer(deflatedData) {
     deflatedData.entityMeshes,
     deflatedData.entityIsObjects,
     deflatedData.positionsDecodeMatrix,
+    deflatedData.entityMeshIds,
+    deflatedData.entityMatrices,
+    deflatedData.entityUsesInstancing,
   ]);
 }
 
@@ -154,7 +176,7 @@ function toArrayBuffer(elements) {
     dataArray.set(element, offset);
     offset += element.length;
   }
-  console.log('arrayBuffer takes ' + (dataArray.length / 1024).toFixed(3) + ' kB');
+  console.log("arrayBuffer takes " + (dataArray.length / 1024).toFixed(3) + " kB");
   return dataArray.buffer;
 }
 
