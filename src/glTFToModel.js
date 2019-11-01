@@ -1,8 +1,8 @@
-import {math} from "./math.js";
-import {utils} from "./utils.js";
-import {buildEdgeIndices} from './buildEdgeIndices.js';
-import {Model} from "./Model.js";
-import atob from "atob";
+const math = require('./math');
+const utils = require('./utils');
+const buildEdgeIndices = require('./buildEdgeIndices');
+const Model = require('./Model');
+const atob = require('atob');
 
 const WEBGL_COMPONENT_TYPES = {
   5120: Int8Array,
