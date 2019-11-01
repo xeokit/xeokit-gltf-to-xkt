@@ -1,38 +1,36 @@
 {
-  "name": "@xeokit/gltf-to-xkt",
+  "name": "gltf2xkt",
   "version": "0.0.1",
-  "private": false,
-  "scripts": {
-    "test": "node tests/index.js",
-    "convert": "node bin/convert"
-  },
+  "description": "xeokit-gltf-to-xkt converts models from glTF 2.0 to xeokit's optimized .xkt format.",
+  "main": "gltf2xkt.js",
   "dependencies": {
     "atob": "^2.1.2",
-    "esm": "^3.2.25",
+    "commander": "^2.20.0",
+    "compression": "^1.6.1",
     "pako": "^1.0.10"
   },
-  "description": "Node.js-based utility to convert glTF to xeokit .XKT format",
-  "keywords": [
-    "gltf",
-    "webgl",
-    "xeokit",
-    "xkt"
-  ],
-  "main": "src/index.js",
-  "module": "src/main.js",
-  "directories": {
-    "lib": "src/lib"
+  "devDependencies": {
+    "eslint": "^6.1.0",
+    "prettier": "^1.18.2"
+  },
+  "preferGlobal": true,
+  "bin": "./gltf2xkt.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/xeokit/xeokit-gltf-to-xkt"
+    "url": "git+https://github.com/xeokit/xeokit-gltf-to-xkt.git"
   },
-  "author": "Lindsay Kay",
-  "files": [
-    "src",
-    "bin"
+  "keywords": [
+    "xeokit",
+    "gltf",
+    "xkt"
   ],
-  "bin": {
-    "xkt-convert": "./bin/convert"
-  }
+  "author": "xeokit",
+  "license": "AGPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/xeokit/xeokit-gltf-to-xkt/issues"
+  },
+  "homepage": "https://github.com/xeokit/xeokit-gltf-to-xkt#readme"
 }
