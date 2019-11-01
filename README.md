@@ -92,9 +92,10 @@ See `.eslint` and `.prettierrc` for code style guide.
 
 ## Credits
 
-The ````xeokit-gltf-to-xkt```` tool and the 
+- The ````xeokit-gltf-to-xkt```` tool and the 
 [XKTLoaderPlugin](https://xeokit.github.io/xeokit-sdk/docs/class/src/plugins/XKTLoaderPlugin/XKTLoaderPlugin.js~XKTLoaderPlugin.html) 
 are based on prototypes by [Toni Marti](https://github.com/tmarti) at [uniZite](https://www.unizite.com/login). Find the original discussion around those prototypes [here](https://github.com/xeokit/xeokit-sdk/issues/48#).
+- Thanks to [Adam Eri](https://github.com/eriadam) at [BIMSpot](https://bimspot.io/) for converting ````xeokit-gltf-to-xkt```` to work as a CLI tool.  
 
 ## Work Remaining
 
