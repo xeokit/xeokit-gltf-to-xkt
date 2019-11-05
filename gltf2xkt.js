@@ -7,8 +7,7 @@ const program = new commander.Command();
 program.version('0.0.1', '-v, --version');
 
 program
-  .option('-s, --source [file]', 'The path to the source gltf' +
-    ' file.')
+  .option('-s, --source [file]', 'The path to the source gltf file.')
   .option('-o, --output [file]', 'The path to the target xkt file.');
 
 program.parse(process.argv);
