@@ -63,7 +63,7 @@ class Converter {
     return new Promise((resolve, reject) => {
       const arrayBuffer = modelToXKT(this.model);
 
-      fs.appendFile(this.xktPath, Buffer.from(arrayBuffer), (error) => {
+      fs.writeFile(this.xktPath, Buffer.from(arrayBuffer), (error) => {
         if (error !== null) {
           console.error(`Unable to write to file at path: ${this.xktPath}`);
           reject(error);
