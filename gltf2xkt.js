@@ -4,7 +4,7 @@ const commander = require('commander');
 const Converter = require('./src/Converter');
 
 const program = new commander.Command();
-program.version('0.0.1', '-v, --version');
+program.version('0.0.2', '-v, --version');
 
 program
   .option('-s, --source [file]', 'The path to the source gltf file.')

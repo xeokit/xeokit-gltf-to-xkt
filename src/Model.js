@@ -14,7 +14,8 @@ class Model {
   constructor() {
     this.meshes = [];
     this.entities = [];
-    this.positionsDecodeMatrix = math.mat4();
+    this.instancedPositionsDecodeMatrix = math.mat4();
+    this.batchedPositionsDecodeMatrix = math.mat4();
   }
 
   createEntity(params) {
@@ -34,44 +35,66 @@ class Model {
     // Oct-encode model normals
     // Create positions dequantization matrix from model AABB
 
-    const aabb = math.collapseAABB3();
+    const instancedAABB = math.collapseAABB3();
+    const batchedAABB = math.collapseAABB3();
 
     for (let i = 0, len = this.meshes.length; i < len; i++) {
 
       const mesh = this.meshes [i];
       const matrix = mesh.matrix;
-      const positions = mesh.positions.slice();
 
-      for (let j = 0, len2 = positions.length; j < len2; j += 3) {
-        tempVec4a[0] = positions[j];
-        tempVec4a[1] = positions[j + 1];
-        tempVec4a[2] = positions[j + 2];
-        math.transformPoint4(matrix, tempVec4a, tempVec4b);
-        math.expandAABB3Point3(aabb, tempVec4b);
-        positions[j] = tempVec4b[0];
-        positions[j + 1] = tempVec4b[1];
-        positions[j + 2] = tempVec4b[2];
+      if (mesh.instanced) {
+
+        // Instanced mesh
+
+        const positions = mesh.positions;
+
+        for (let j = 0, len2 = positions.length; j < len2; j += 3) {
+          tempVec4a[0] = positions[j];
+          tempVec4a[1] = positions[j + 1];
+          tempVec4a[2] = positions[j + 2];
+          math.expandAABB3Point3(instancedAABB, tempVec4a);
+        }
+
+      } else {
+
+        // Batched mesh
+
+        const positions = mesh.positions.slice();
+
+        for (let j = 0, len2 = positions.length; j < len2; j += 3) {
+          tempVec4a[0] = positions[j];
+          tempVec4a[1] = positions[j + 1];
+          tempVec4a[2] = positions[j + 2];
+          math.transformPoint4(matrix, tempVec4a, tempVec4b);
+          math.expandAABB3Point3(batchedAABB, tempVec4b);
+          positions[j] = tempVec4b[0];
+          positions[j + 1] = tempVec4b[1];
+          positions[j + 2] = tempVec4b[2];
+        }
+
+        mesh.positions = positions;
       }
-
-      mesh.positions = positions;
     }
+
+    geometryCompression.createPositionsDecodeMatrix(instancedAABB, this.instancedPositionsDecodeMatrix);
+    geometryCompression.createPositionsDecodeMatrix(batchedAABB, this.batchedPositionsDecodeMatrix);
 
     for (let i = 0, len = this.meshes.length; i < len; i++) {
 
       const mesh = this.meshes [i];
 
+      const aabb = mesh.instanced ? instancedAABB : batchedAABB;
+
       const quantizedPositions = new Uint16Array(mesh.positions.length);
       geometryCompression.quantizePositions(mesh.positions, mesh.positions.length, aabb, quantizedPositions);
       mesh.positions = quantizedPositions;
-
 
       const modelNormalMatrix = (mesh.matrix) ? math.inverseMat4(math.transposeMat4(mesh.matrix, tempMat4b), tempMat4) : math.identityMat4(tempMat4);
       const encodedNormals = new Int8Array(mesh.normals.length);
       geometryCompression.transformAndOctEncodeNormals(modelNormalMatrix, mesh.normals, mesh.normals.length, encodedNormals, 0);
       mesh.normals = encodedNormals;
     }
-
-    geometryCompression.createPositionsDecodeMatrix(aabb, this.positionsDecodeMatrix);
   }
 }
 

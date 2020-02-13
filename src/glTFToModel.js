@@ -327,6 +327,7 @@ function parseNode(parsingCtx, glTFNode, matrix) {
               matrix: meshMatrix,
               color: materialInfo ? materialInfo._rgbaColor : new Float32Array([1.0, 1.0, 1.0, 1.0]),
               opacity: materialInfo ? materialInfo._rgbaColor[3] : 1.0,
+              instanced: (!meshOnlyUsedOnce)
             };
 
             parsePrimitiveGeometry(parsingCtx, primitiveInfo, meshCfg);
@@ -346,7 +347,7 @@ function parseNode(parsingCtx, glTFNode, matrix) {
           isObject: (!!glTFNode.name),
           meshIds: parsingCtx._meshIdToPrimitiveIdsCache [glTFNode.mesh],
           matrix: entityMatrix,
-          usesInstancing: !meshOnlyUsedOnce,
+          usesInstancing: (!meshOnlyUsedOnce)
         });
 
         if (meshOnlyUsedOnce) {

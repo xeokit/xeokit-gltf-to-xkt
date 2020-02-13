@@ -1,6 +1,6 @@
 const pako = require('pako');
 
-const XKT_VERSION = 2; // XKT format version
+const XKT_VERSION = 3; // XKT format version
 
 /**
  * Serializes a {@link Model} to an {@link ArrayBuffer}.
@@ -56,7 +56,8 @@ function getModelData(model) {
     entityIDs: [],
     entityMeshes: new Uint32Array(entities.length),
     entityIsObjects: new Uint8Array(entities.length),
-    positionsDecodeMatrix: model.positionsDecodeMatrix,
+    instancedPositionsDecodeMatrix:model.instancedPositionsDecodeMatrix,
+    batchedPositionsDecodeMatrix: model.batchedPositionsDecodeMatrix,
     entityMeshIds: new Uint32Array(countEntityMeshIds),
     entityMatrices: new Float32Array(entities.length*16),
     entityUsesInstancing: new Uint8Array(entities.length)
@@ -129,7 +130,8 @@ function deflateData(data) {
         })),
     entityMeshes: pako.deflate(data.entityMeshes.buffer),
     entityIsObjects: pako.deflate(data.entityIsObjects),
-    positionsDecodeMatrix: pako.deflate(data.positionsDecodeMatrix.buffer),
+    instancedPositionsDecodeMatrix: pako.deflate(data.instancedPositionsDecodeMatrix.buffer),
+    batchedPositionsDecodeMatrix: pako.deflate(data.batchedPositionsDecodeMatrix.buffer),
     entityMeshIds: pako.deflate(data.entityMeshIds.buffer),
     entityMatrices: pako.deflate(data.entityMatrices.buffer),
     entityUsesInstancing: pako.deflate(data.entityUsesInstancing),
@@ -149,7 +151,8 @@ function createArrayBuffer(deflatedData) {
     deflatedData.entityIDs,
     deflatedData.entityMeshes,
     deflatedData.entityIsObjects,
-    deflatedData.positionsDecodeMatrix,
+    deflatedData.instancedPositionsDecodeMatrix,
+    deflatedData.batchedPositionsDecodeMatrix,
     deflatedData.entityMeshIds,
     deflatedData.entityMatrices,
     deflatedData.entityUsesInstancing,
