@@ -1,7 +1,7 @@
 const pako = require('pako');
 
 const XKT_VERSION = 3; // XKT format version
-const INTERLEAVE = true; // https://github.com/xeokit/xeokit-gltf-to-xkt/issues/1
+const INTERLEAVE = false; // https://github.com/xeokit/xeokit-gltf-to-xkt/issues/1
 
 /**
  * Serializes a {@link Model} to an {@link ArrayBuffer}.
