@@ -1,5 +1,7 @@
 # xeokit's gltf2xkt
 
+[![npm version](https://badge.fury.io/js/%40xeokit%2Fxeokit-gltf-to-xkt.svg)](https://badge.fury.io/js/%40xeokit%2Fxeokit-gltf-to-xkt)
+
 ## Contents
 
  - [Overview](#overview)
