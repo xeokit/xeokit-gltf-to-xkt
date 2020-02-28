@@ -1,38 +1,38 @@
 {
-  "name": "@xeokit/xeokit-gltf-to-xkt",
-  "version": "0.0.3",
-  "description": "xeokit-gltf-to-xkt converts models from glTF 2.0 to xeokit's optimized .xkt format.",
-  "main": "src/index.js",
-  "dependencies": {
-    "atob": "^2.1.2",
-    "commander": "^2.20.0",
-    "compression": "^1.6.1",
-    "pako": "^1.0.10"
-  },
-  "devDependencies": {
-    "eslint": "^6.1.0",
-    "prettier": "^1.18.2"
-  },
-  "preferGlobal": true,
-  "bin": {
-    "gltf2xkt": "./gltf2xkt.js"
-  },
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/xeokit/xeokit-gltf-to-xkt.git"
-  },
-  "keywords": [
-    "xeokit",
-    "gltf",
-    "xkt"
-  ],
-  "author": "xeokit",
-  "license": "See LICENSE.txt",
-  "bugs": {
-    "url": "https://github.com/xeokit/xeokit-gltf-to-xkt/issues"
-  },
-  "homepage": "https://github.com/xeokit/xeokit-gltf-to-xkt#readme"
+    "name": "@xeokit/xeokit-gltf-to-xkt",
+    "version": "0.0.3",
+    "description": "xeokit-gltf-to-xkt converts models from glTF 2.0 to xeokit's optimized .xkt format.",
+    "main": "src/index.js",
+    "dependencies": {
+        "atob": "^2.1.2",
+        "commander": "^2.20.0",
+        "compression": "^1.6.1",
+        "pako": "^1.0.10"
+    },
+    "devDependencies": {
+        "eslint": "^6.1.0",
+        "prettier": "^1.18.2"
+    },
+    "preferGlobal": true,
+    "bin": {
+        "gltf2xkt": "./gltf2xkt.js"
+    },
+    "scripts": {
+        "publish": "npm publish --access public"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/xeokit/xeokit-gltf-to-xkt.git"
+    },
+    "keywords": [
+        "xeokit",
+        "gltf",
+        "xkt"
+    ],
+    "author": "xeokit",
+    "license": "See LICENSE.txt",
+    "bugs": {
+        "url": "https://github.com/xeokit/xeokit-gltf-to-xkt/issues"
+    },
+    "homepage": "https://github.com/xeokit/xeokit-gltf-to-xkt#readme"
 }
