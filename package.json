@@ -1,5 +1,5 @@
 {
-  "name": "gltf2xkt",
+  "name": "@xeokit/xeokit-sdk",
   "version": "0.0.2",
   "description": "xeokit-gltf-to-xkt converts models from glTF 2.0 to xeokit's optimized .xkt format.",
   "main": "src/index.js",
@@ -30,7 +30,7 @@
     "xkt"
   ],
   "author": "xeokit",
-  "license": "https://xeokit.github.io/xeokit-licensing/",
+  "license": "See LICENSE.txt",
   "bugs": {
     "url": "https://github.com/xeokit/xeokit-gltf-to-xkt/issues"
   },
