@@ -38,7 +38,7 @@ Click on the screenshot below for a live demo of the XKTLoaderPlugin.
 Install locally or globally from `npm`.
 
 ```
-$ npm install xeokit/xeokit-gltf-to-xkt -g
+$ npm i @xeokit/xeokit-gltf-to-xkt
 $ gltf2xkt -s scene.gltf -o scene.xkt
 ```
 
