@@ -1,6 +1,6 @@
 const pako = require('pako');
 
-const XKT_VERSION = 3; // XKT format version
+const XKT_VERSION = 4; // XKT format version
 const INTERLEAVE = false; // https://github.com/xeokit/xeokit-gltf-to-xkt/issues/1
 
 /**
@@ -20,6 +20,9 @@ function modelToXKT(model) {
 
 function getModelData(model) {
 
+    const INSTANCED_MESHES_DECODE_MATRIX_INDEX = 0;
+    const BATCHED_MESHES_DECODE_MATRIX_INDEX = 16;
+
     const entities = model.entities;
     const meshes = model.meshes;
 
@@ -29,6 +32,10 @@ function getModelData(model) {
     let countEdgeIndices = 0;
     let countMeshes = meshes.length;
     let countColors = 0;
+    let countDecodeMatrices = 0;
+
+    countDecodeMatrices++; // Instanced meshes PDM
+    countDecodeMatrices++; // Batched meshes PDM
 
     for (let i = 0, len = meshes.length; i < len; i++) {
         const mesh = meshes [i];
@@ -50,25 +57,29 @@ function getModelData(model) {
         normals: new Int8Array(countNormals),
         indices: new Uint32Array(countIndices),
         edgeIndices: new Uint32Array(countEdgeIndices),
+        decodeMatrices: new Float32Array(countDecodeMatrices * 16),
         meshPositions: new Uint32Array(countMeshes),
         meshIndices: new Uint32Array(countMeshes),
         meshEdgesIndices: new Uint32Array(countMeshes),
+        meshDecodeMatrices: new Uint32Array(countMeshes),
         meshColors: new Uint8Array(countMeshes * 4),
         entityIDs: [],
         entityMeshes: new Uint32Array(entities.length),
         entityIsObjects: new Uint8Array(entities.length),
-        instancedPositionsDecodeMatrix: model.instancedPositionsDecodeMatrix,
-        batchedPositionsDecodeMatrix: model.batchedPositionsDecodeMatrix,
         entityMeshIds: new Uint32Array(countEntityMeshIds),
         entityMatrices: new Float32Array(entities.length * 16),
         entityUsesInstancing: new Uint8Array(entities.length)
     };
+
+    data.decodeMatrices.set(model.instancedPositionsDecodeMatrix, INSTANCED_MESHES_DECODE_MATRIX_INDEX);
+    data.decodeMatrices.set(model.batchedPositionsDecodeMatrix, BATCHED_MESHES_DECODE_MATRIX_INDEX);
 
     countPositions = 0;
     countNormals = 0;
     countIndices = 0;
     countEdgeIndices = 0;
     countColors = 0;
+    countDecodeMatrices = 0;
 
     // Meshes
 
@@ -83,6 +94,12 @@ function getModelData(model) {
         data.meshPositions [i] = countPositions;
         data.meshIndices [i] = countIndices;
         data.meshEdgesIndices [i] = countEdgeIndices;
+
+        if (mesh.instanced) {
+            data.meshDecodeMatrices[i] = INSTANCED_MESHES_DECODE_MATRIX_INDEX;
+        } else {
+            data.meshDecodeMatrices[i] = BATCHED_MESHES_DECODE_MATRIX_INDEX;
+        }
 
         data.meshColors[countColors + 0] = Math.floor(mesh.color[0] * 255);
         data.meshColors[countColors + 1] = Math.floor(mesh.color[1] * 255);
@@ -138,9 +155,11 @@ function deflateData(data) {
         normals: pako.deflate(data.normals.buffer),
         indices: pako.deflate(data.indices.buffer),
         edgeIndices: pako.deflate(data.edgeIndices.buffer),
+        decodeMatrices: pako.deflate(data.decodeMatrices.buffer),
         meshPositions: pako.deflate(data.meshPositions.buffer),
         meshIndices: pako.deflate(data.meshIndices.buffer),
         meshEdgesIndices: pako.deflate(data.meshEdgesIndices.buffer),
+        meshDecodeMatrices: pako.deflate(data.meshDecodeMatrices.buffer),
         meshColors: pako.deflate(data.meshColors.buffer),
         entityIDs: pako.deflate(JSON.stringify(data.entityIDs)
             .replace(/[\u007F-\uFFFF]/g, function (chr) {      // Produce only ASCII-chars, so that the data can be inflated later
@@ -148,8 +167,6 @@ function deflateData(data) {
             })),
         entityMeshes: pako.deflate(data.entityMeshes.buffer),
         entityIsObjects: pako.deflate(data.entityIsObjects),
-        instancedPositionsDecodeMatrix: pako.deflate(data.instancedPositionsDecodeMatrix.buffer),
-        batchedPositionsDecodeMatrix: pako.deflate(data.batchedPositionsDecodeMatrix.buffer),
         entityMeshIds: pako.deflate(data.entityMeshIds.buffer),
         entityMatrices: pako.deflate(data.entityMatrices.buffer),
         entityUsesInstancing: pako.deflate(data.entityUsesInstancing),
@@ -162,15 +179,15 @@ function createArrayBuffer(deflatedData) {
         deflatedData.normals,
         deflatedData.indices,
         deflatedData.edgeIndices,
+        deflatedData.decodeMatrices,
         deflatedData.meshPositions,
         deflatedData.meshIndices,
         deflatedData.meshEdgesIndices,
+        deflatedData.meshDecodeMatrices,
         deflatedData.meshColors,
         deflatedData.entityIDs,
         deflatedData.entityMeshes,
         deflatedData.entityIsObjects,
-        deflatedData.instancedPositionsDecodeMatrix,
-        deflatedData.batchedPositionsDecodeMatrix,
         deflatedData.entityMeshIds,
         deflatedData.entityMatrices,
         deflatedData.entityUsesInstancing,
