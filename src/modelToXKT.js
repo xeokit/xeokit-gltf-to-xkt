@@ -20,9 +20,7 @@ function modelToXKT(model) {
 
 function getModelData(model) {
 
-    const INSTANCED_MESHES_DECODE_MATRIX_INDEX = 0;
-    const BATCHED_MESHES_DECODE_MATRIX_INDEX = 16;
-
+    const decodeMatrices = model.decodeMatrices;
     const entities = model.entities;
     const meshes = model.meshes;
 
@@ -32,10 +30,6 @@ function getModelData(model) {
     let countEdgeIndices = 0;
     let countMeshes = meshes.length;
     let countColors = 0;
-    let countDecodeMatrices = 0;
-
-    countDecodeMatrices++; // Instanced meshes PDM
-    countDecodeMatrices++; // Batched meshes PDM
 
     for (let i = 0, len = meshes.length; i < len; i++) {
         const mesh = meshes [i];
@@ -57,7 +51,7 @@ function getModelData(model) {
         normals: new Int8Array(countNormals),
         indices: new Uint32Array(countIndices),
         edgeIndices: new Uint32Array(countEdgeIndices),
-        decodeMatrices: new Float32Array(countDecodeMatrices * 16),
+        decodeMatrices: new Float32Array(decodeMatrices),
         meshPositions: new Uint32Array(countMeshes),
         meshIndices: new Uint32Array(countMeshes),
         meshEdgesIndices: new Uint32Array(countMeshes),
@@ -71,15 +65,11 @@ function getModelData(model) {
         entityUsesInstancing: new Uint8Array(entities.length)
     };
 
-    data.decodeMatrices.set(model.instancedPositionsDecodeMatrix, INSTANCED_MESHES_DECODE_MATRIX_INDEX);
-    data.decodeMatrices.set(model.batchedPositionsDecodeMatrix, BATCHED_MESHES_DECODE_MATRIX_INDEX);
-
     countPositions = 0;
     countNormals = 0;
     countIndices = 0;
     countEdgeIndices = 0;
     countColors = 0;
-    countDecodeMatrices = 0;
 
     // Meshes
 
@@ -94,12 +84,7 @@ function getModelData(model) {
         data.meshPositions [i] = countPositions;
         data.meshIndices [i] = countIndices;
         data.meshEdgesIndices [i] = countEdgeIndices;
-
-        if (mesh.instanced) {
-            data.meshDecodeMatrices[i] = INSTANCED_MESHES_DECODE_MATRIX_INDEX;
-        } else {
-            data.meshDecodeMatrices[i] = BATCHED_MESHES_DECODE_MATRIX_INDEX;
-        }
+        data.meshDecodeMatrices[i] = mesh.decodeMatrixIdx * 16;
 
         data.meshColors[countColors + 0] = Math.floor(mesh.color[0] * 255);
         data.meshColors[countColors + 1] = Math.floor(mesh.color[1] * 255);
