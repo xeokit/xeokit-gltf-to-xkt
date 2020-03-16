@@ -3098,6 +3098,19 @@ const math = {
         return p2;
     },
 
+    /** Returns true if the first AABB contains the second AABB.
+     * @param aabb1
+     * @param aabb2
+     * @returns {boolean}
+     */
+    containsAABB3: function (aabb1, aabb2) {
+        const result = (
+            aabb1[0] <= aabb2[0] && aabb2[3] <= aabb1[3] &&
+            aabb1[1] <= aabb2[1] && aabb2[4] <= aabb1[4] &&
+            aabb1[2] <= aabb2[2] && aabb2[5] <= aabb1[5]);
+        return result;
+    },
+
     /**
      * Gets the diagonal size of an AABB3 given as minima and maxima.
      *

@@ -6,15 +6,25 @@ const tempMat4b = math.mat4();
 const tempVec4a = math.vec4([0, 0, 0, 1]);
 const tempVec4b = math.vec4([0, 0, 0, 1]);
 
+const KD_TREE_MAX_DEPTH = 4;
+
+const kdTreeDimLength = new Float32Array();
+
 /**
  * Contains the output of {@link glTFToModel}.
  */
 class Model {
 
     constructor() {
+
         this.decodeMatrices = [];
         this.meshes = [];
         this.entities = [];
+
+        this._tileAABB = math.AABB3();
+        this._tileDecodeMatrix = math.mat4();
+        this._tileMeshes = [];
+        this._numTileMeshes = 0;
     }
 
     createEntity(params) {
@@ -27,85 +37,196 @@ class Model {
 
     finalize() {
 
-        // Transform model positions into World-space
-        // Build model AABB
-        // Quantize model positions using model AABB
-        // Transform model normals into World-space
-        // Oct-encode model normals
-        // Create positions dequantization matrix from model AABB
-
-        const instancedAABB = math.collapseAABB3();
-        const batchedAABB = math.collapseAABB3();
+        const batchedMeshes = [];
+        const instancedMeshes = [];
 
         for (let i = 0, len = this.meshes.length; i < len; i++) {
-
             const mesh = this.meshes [i];
-            const matrix = mesh.matrix;
-
-            if (mesh.instanced) {
-
-                // Instanced mesh
-
-                const positions = mesh.positions;
-
-                for (let j = 0, len2 = positions.length; j < len2; j += 3) {
-                    tempVec4a[0] = positions[j];
-                    tempVec4a[1] = positions[j + 1];
-                    tempVec4a[2] = positions[j + 2];
-                    math.expandAABB3Point3(instancedAABB, tempVec4a);
-                }
-
-            } else {
-
-                // Batched mesh
-
+            const batched = (!mesh.instanced);
+            mesh.aabb = math.collapseAABB3();
+            if (batched) {
                 const positions = mesh.positions.slice();
-
-                for (let j = 0, len2 = positions.length; j < len2; j += 3) {
+                const matrix = mesh.matrix;
+                for (let j = 0, lenj = positions.length; j < lenj; j += 3) {
                     tempVec4a[0] = positions[j];
                     tempVec4a[1] = positions[j + 1];
                     tempVec4a[2] = positions[j + 2];
                     math.transformPoint4(matrix, tempVec4a, tempVec4b);
-                    math.expandAABB3Point3(batchedAABB, tempVec4b);
+                    math.expandAABB3Point3(mesh.aabb, tempVec4b);
                     positions[j] = tempVec4b[0];
                     positions[j + 1] = tempVec4b[1];
                     positions[j + 2] = tempVec4b[2];
                 }
-
                 mesh.positions = positions;
+                batchedMeshes.push(mesh);
+            } else {
+                const positions = mesh.positions;
+                for (let j = 0, lenj = positions.length; j < lenj; j += 3) {
+                    tempVec4a[0] = positions[j];
+                    tempVec4a[1] = positions[j + 1];
+                    tempVec4a[2] = positions[j + 2];
+                    math.expandAABB3Point3(mesh.aabb, tempVec4a);
+                }
+                instancedMeshes.push(mesh);
             }
         }
 
-        const instancedPositionsDecodeMatrix = math.mat4();
-        geometryCompression.createPositionsDecodeMatrix(instancedAABB, instancedPositionsDecodeMatrix);
+        this._createTilesFromKDTree(this._createKDTree(batchedMeshes));
+        this._createTilesFromKDTree(this._createKDTree(instancedMeshes));
 
-        const batchedPositionsDecodeMatrix = math.mat4();
-        geometryCompression.createPositionsDecodeMatrix(batchedAABB, batchedPositionsDecodeMatrix);
+        // // Sort meshes into runs that share the same decode matrices
+        // // This is important for XKTLoaderPlugin to reused the same scratch memory for one run at a time.
+        //
+        // this.meshes.sort(function (mesh1, mesh2) {
+        //     if (mesh1.decodeMatrixIdx === mesh2.decodeMatrixIdx) {
+        //         return 0;
+        //     }
+        //     if (mesh1.decodeMatrixIdx <= mesh2.decodeMatrixIdx) {
+        //         return -1;
+        //     }
+        //     return 1;
+        // });
+    }
 
-        for (var i = 0; i < 16; i++) {
-            this.decodeMatrices.push(instancedPositionsDecodeMatrix[i]);
+    _createKDTree(meshes) {
+        const aabb = math.collapseAABB3();
+        for (let i = 0, len = meshes.length; i < len; i++) {
+            const mesh = meshes[i];
+            math.expandAABB3(aabb, mesh.aabb);
+        }
+        const root = {
+            aabb: aabb
+        };
+        for (let i = 0, len = meshes.length; i < len; i++) {
+            const mesh = meshes[i];
+            const depth = 0;
+            this._insertMeshIntoKDTree(root, mesh, depth + 1);
+        }
+        return root;
+    }
+
+    _insertMeshIntoKDTree(node, mesh, depth) {
+
+        const meshAABB = mesh.aabb;
+
+        if (depth >= KD_TREE_MAX_DEPTH) {
+            node.meshes = node.meshes || [];
+            node.meshes.push(mesh);
+            math.expandAABB3(node.aabb, meshAABB);
+            return;
         }
 
-        for (var i = 0; i < 16; i++) {
-            this.decodeMatrices.push(batchedPositionsDecodeMatrix[i]);
+        if (node.left) {
+            if (math.containsAABB3(node.left.aabb, meshAABB)) {
+                this._insertMeshIntoKDTree(node.left, mesh, depth + 1);
+                return;
+            }
         }
 
-        for (let i = 0, len = this.meshes.length; i < len; i++) {
+        if (node.right) {
+            if (math.containsAABB3(node.right.aabb, meshAABB)) {
+                this._insertMeshIntoKDTree(node.right, mesh, depth + 1);
+                return;
+            }
+        }
 
-            const mesh = this.meshes [i];
+        const nodeAABB = node.aabb;
+        kdTreeDimLength[0] = nodeAABB[3] - nodeAABB[0];
+        kdTreeDimLength[1] = nodeAABB[4] - nodeAABB[1];
+        kdTreeDimLength[2] = nodeAABB[5] - nodeAABB[2];
 
-            const aabb = mesh.instanced ? instancedAABB : batchedAABB;
+        let dim = 0;
 
+        if (kdTreeDimLength[1] > kdTreeDimLength[dim]) {
+            dim = 1;
+        }
+
+        if (kdTreeDimLength[2] > kdTreeDimLength[dim]) {
+            dim = 2;
+        }
+
+        if (!node.left) {
+            const aabbLeft = nodeAABB.slice();
+            aabbLeft[dim + 3] = (nodeAABB[dim] + nodeAABB[dim + 3]) / 2.0;
+            node.left = {
+                aabb: aabbLeft
+            };
+            if (math.containsAABB3(aabbLeft, meshAABB)) {
+                this._insertMeshIntoKDTree(node.left, mesh, depth + 1);
+                return;
+            }
+        }
+
+        if (!node.right) {
+            const aabbRight = nodeAABB.slice();
+            aabbRight[dim] = (nodeAABB[dim] + nodeAABB[dim + 3]) / 2.0;
+            node.right = {
+                aabb: aabbRight
+            };
+            if (math.containsAABB3(aabbRight, meshAABB)) {
+                this._insertMeshIntoKDTree(node.right, mesh, depth + 1);
+                return;
+            }
+        }
+
+        node.meshes = node.meshes || [];
+        node.meshes.push(mesh);
+        math.expandAABB3(node.aabb, meshAABB);
+    }
+
+    _createTilesFromKDTree(kdNode) {
+        if (kdNode.meshes && kdNode.meshes.length > 0) {
+            this._createTile();
+            const meshes = kdNode.meshes;
+            for (let i = 0, len = meshes.length; i < len; i++) {
+                const mesh = meshes[i];
+                this._addMeshToTile(mesh)
+            }
+            this._finalizeTile();
+        }
+        if (kdNode.left) {
+            this._createTilesFromKDTree(kdNode.left);
+        }
+        if (kdNode.right) {
+            this._createTilesFromKDTree(kdNode.right);
+        }
+    }
+
+    _createTile() {
+        this._numTileMeshes = 0;
+    }
+
+    _addMeshToTile(mesh) {
+        mesh.decodeMatrixIdx = this.decodeMatrices.length;
+        this._tileMeshes[this._numTileMeshes++] = mesh;
+    }
+
+    _finalizeTile() {
+        math.collapseAABB3(this._tileAABB);
+        for (let i = 0; i < this._numTileMeshes; i++) {
+            const mesh = this._tileMeshes [i];
+            const positions = mesh.positions;
+            for (let j = 0, lenj = positions.length; j < lenj; j += 3) {
+                tempVec4a[0] = positions[j];
+                tempVec4a[1] = positions[j + 1];
+                tempVec4a[2] = positions[j + 2];
+                math.expandAABB3Point3(this._tileAABB, tempVec4a);
+            }
+        }
+        this._tileDecodeMatrix = math.mat4();
+        geometryCompression.createPositionsDecodeMatrix(this._tileAABB, this._tileDecodeMatrix);
+        for (let i = 0, len = this._tileDecodeMatrix.length; i < len; i++) {
+            this.decodeMatrices.push(this._tileDecodeMatrix[i]);
+        }
+        for (let i = 0; i < this._numTileMeshes; i++) {
+            const mesh = this._tileMeshes [i];
             const quantizedPositions = new Uint16Array(mesh.positions.length);
-            geometryCompression.quantizePositions(mesh.positions, mesh.positions.length, aabb, quantizedPositions);
+            geometryCompression.quantizePositions(mesh.positions, mesh.positions.length, this._tileAABB, quantizedPositions, true);
             mesh.positions = quantizedPositions;
-
             const modelNormalMatrix = (mesh.matrix) ? math.inverseMat4(math.transposeMat4(mesh.matrix, tempMat4b), tempMat4) : math.identityMat4(tempMat4);
             const encodedNormals = new Int8Array(mesh.normals.length);
             geometryCompression.transformAndOctEncodeNormals(modelNormalMatrix, mesh.normals, mesh.normals.length, encodedNormals, 0);
             mesh.normals = encodedNormals;
-
-            mesh.decodeMatrixIdx = (mesh.instanced) ? 0 : 1;
         }
     }
 }

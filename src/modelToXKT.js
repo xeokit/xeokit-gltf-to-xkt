@@ -1,7 +1,6 @@
 const pako = require('pako');
 
 const XKT_VERSION = 4; // XKT format version
-const INTERLEAVE = false; // https://github.com/xeokit/xeokit-gltf-to-xkt/issues/1
 
 /**
  * Serializes a {@link Model} to an {@link ArrayBuffer}.
@@ -19,6 +18,8 @@ function modelToXKT(model) {
 }
 
 function getModelData(model) {
+
+    console.log("Number of decode matrices: " + (model.decodeMatrices.length / 16));
 
     const decodeMatrices = model.decodeMatrices;
     const entities = model.entities;
@@ -47,16 +48,19 @@ function getModelData(model) {
     }
 
     const data = {
+
         positions: new Uint16Array(countPositions),
         normals: new Int8Array(countNormals),
         indices: new Uint32Array(countIndices),
         edgeIndices: new Uint32Array(countEdgeIndices),
         decodeMatrices: new Float32Array(decodeMatrices),
+
         meshPositions: new Uint32Array(countMeshes),
         meshIndices: new Uint32Array(countMeshes),
         meshEdgesIndices: new Uint32Array(countMeshes),
         meshDecodeMatrices: new Uint32Array(countMeshes),
         meshColors: new Uint8Array(countMeshes * 4),
+
         entityIDs: [],
         entityMeshes: new Uint32Array(entities.length),
         entityIsObjects: new Uint8Array(entities.length),
@@ -81,11 +85,11 @@ function getModelData(model) {
         data.normals.set(mesh.normals, countNormals);
         data.indices.set(mesh.indices, countIndices);
         data.edgeIndices.set(mesh.edgeIndices, countEdgeIndices);
+
         data.meshPositions [i] = countPositions;
         data.meshIndices [i] = countIndices;
         data.meshEdgesIndices [i] = countEdgeIndices;
-        data.meshDecodeMatrices[i] = mesh.decodeMatrixIdx * 16;
-
+        data.meshDecodeMatrices[i] = mesh.decodeMatrixIdx;
         data.meshColors[countColors + 0] = Math.floor(mesh.color[0] * 255);
         data.meshColors[countColors + 1] = Math.floor(mesh.color[1] * 255);
         data.meshColors[countColors + 2] = Math.floor(mesh.color[2] * 255);
@@ -117,35 +121,21 @@ function getModelData(model) {
     return data;
 }
 
-function interleaveArray(arr, stepSize) {
-    const arrSize = arr.length;
-    const tmp = [];
-    for (let i = 0; i < stepSize; i++) {
-        for (var j = 0; j < arrSize; j += stepSize) {
-            tmp.push(arr [j + i]);
-        }
-    }
-    for (let i = 0; i < arrSize; i++) {
-        arr [i] = tmp [i];
-    }
-}
-
 function deflateData(data) {
-    if (INTERLEAVE) {
-        interleaveArray(data.normals, 3);
-        interleaveArray(data.positions, 3);
-    }
     return {
+
         positions: pako.deflate(data.positions.buffer),
         normals: pako.deflate(data.normals.buffer),
         indices: pako.deflate(data.indices.buffer),
         edgeIndices: pako.deflate(data.edgeIndices.buffer),
         decodeMatrices: pako.deflate(data.decodeMatrices.buffer),
+
         meshPositions: pako.deflate(data.meshPositions.buffer),
         meshIndices: pako.deflate(data.meshIndices.buffer),
         meshEdgesIndices: pako.deflate(data.meshEdgesIndices.buffer),
         meshDecodeMatrices: pako.deflate(data.meshDecodeMatrices.buffer),
         meshColors: pako.deflate(data.meshColors.buffer),
+
         entityIDs: pako.deflate(JSON.stringify(data.entityIDs)
             .replace(/[\u007F-\uFFFF]/g, function (chr) {      // Produce only ASCII-chars, so that the data can be inflated later
                 return "\\u" + ("0000" + chr.charCodeAt(0).toString(16)).substr(-4)
@@ -159,17 +149,21 @@ function deflateData(data) {
 }
 
 function createArrayBuffer(deflatedData) {
+
     return toArrayBuffer([
+
         deflatedData.positions,
         deflatedData.normals,
         deflatedData.indices,
         deflatedData.edgeIndices,
         deflatedData.decodeMatrices,
+
         deflatedData.meshPositions,
         deflatedData.meshIndices,
         deflatedData.meshEdgesIndices,
         deflatedData.meshDecodeMatrices,
         deflatedData.meshColors,
+
         deflatedData.entityIDs,
         deflatedData.entityMeshes,
         deflatedData.entityIsObjects,

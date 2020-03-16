@@ -33,7 +33,6 @@ class Converter {
         const content = await this.readGltf();
         const gltf = JSON.parse(content);
         const basePath = getBasePath(this.gltfPath);
-        console.log(basePath);
         this.model = await glTFToModel(gltf, {
             basePath: basePath
         });
