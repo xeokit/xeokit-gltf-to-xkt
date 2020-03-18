@@ -5,19 +5,20 @@
 ## Contents
 
  - [Overview](#overview)
- - [Credits](#credits)
  - [Usage](#usage)
- - [Work Remaining](#work-remaining)
+ - [Credits](#credits)
   
 ## Overview
-**xeokit-gltf-to-xkt** converts models from glTF 2.0 to 
-[xeokit](http://xeokit.io)'s optimized ````.xkt```` format.
+
+**xeokit-gltf-to-xkt** is a nodejs-based command line tool that converts models from glTF 2.0 to 
+[xeokit](http://xeokit.io)'s optimized ````.xkt```` format. 
+ 
+As described in [Creating Files for Offline BIM](https://github.com/xeokit/xeokit-sdk/wiki/Creating-Files-for-Offline-BIM), xeokit-gltf-to-xkt may be used with other open source CLI tools to convert models from IFC and COLLADA format into ````.xkt```` format. 
 
 An ````.xkt```` file is a single BLOB containing a model, compressed using 
-geometry quantization and zlib. 
+geometry quantization, oct-encoding and zlib. 
 See the [XKT Format](https://github.com/xeokit/xeokit-sdk/wiki/XKT-Format) 
 specification for a more detailed description of the ````.xkt```` format.
-
 
 Once you have ````.xkt```` files, you can load them into your viewer using 
 [XKTLoaderPlugin](https://xeokit.github.io/xeokit-sdk/docs/class/src/plugins/XKTLoaderPlugin/XKTLoaderPlugin.js~XKTLoaderPlugin.html), 
@@ -97,10 +98,6 @@ See `.eslint` and `.prettierrc` for code style guide.
 - The ````xeokit-gltf-to-xkt```` tool and the 
 [XKTLoaderPlugin](https://xeokit.github.io/xeokit-sdk/docs/class/src/plugins/XKTLoaderPlugin/XKTLoaderPlugin.js~XKTLoaderPlugin.html) 
 are based on prototypes by [Toni Marti](https://github.com/tmarti) at [uniZite](https://www.unizite.com/login). Find the original discussion around those prototypes [here](https://github.com/xeokit/xeokit-sdk/issues/48#).
+- Thanks to [D-Studio](http://dstudio.be/) and [OpenProject](https://www.openproject.org/) for sponsoring the development of the ````.xkt```` format.
 - Thanks to [Adam Eri](https://github.com/eriadam) at [BIMSpot](https://bimspot.io/) for converting ````xeokit-gltf-to-xkt```` to work as a CLI tool.  
 
-## Work Remaining
-
-* [ ] Publish to `npm`.
-* [ ] At present, ````xeokit-gltf-to-xkt```` only works with glTF 2.0 models that
-have base-64 geometry buffers embedded within the glTF JSON.
