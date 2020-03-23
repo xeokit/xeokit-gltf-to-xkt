@@ -40,33 +40,32 @@ function getModelData(model) {
         countEdgeIndices += mesh.edgeIndices.length;
     }
 
-    let countEntityMeshIds = 0;
+    let countMeshInstances = 0;
 
     for (let i = 0, len = entities.length; i < len; i++) {
         const entity = entities[i];
-        countEntityMeshIds += entity.meshIds.length;
+        countMeshInstances += entity.meshIds.length;
     }
 
     const data = {
 
-        positions: new Uint16Array(countPositions),
-        normals: new Int8Array(countNormals),
-        indices: new Uint32Array(countIndices),
-        edgeIndices: new Uint32Array(countEdgeIndices),
-        decodeMatrices: new Float32Array(decodeMatrices),
+        positions: new Uint16Array(countPositions), // Flat array of quantized World-space positions for all meshes
+        normals: new Int8Array(countNormals), // Flat array of oct-encoded normals for all meshes
+        indices: new Uint32Array(countIndices), // Indices for all meshes
+        edgeIndices: new Uint32Array(countEdgeIndices), // Edge indices for all meshes
+        decodeMatrices: new Float32Array(decodeMatrices), // Flat array of 4x4 de-quantize (decode) matrices for all meshes
 
-        meshPositions: new Uint32Array(countMeshes),
-        meshIndices: new Uint32Array(countMeshes),
-        meshEdgesIndices: new Uint32Array(countMeshes),
-        meshDecodeMatrices: new Uint32Array(countMeshes),
-        meshColors: new Uint8Array(countMeshes * 4),
+        eachMeshPositionsAndNormalsPortion: new Uint32Array(countMeshes), // For each mesh, an index to its first element in data.positions and data.normals
+        eachMeshIndicesPortion: new Uint32Array(countMeshes), // For each mesh, an index to its first element in data.indices
+        eachMeshEdgeIndicesPortion: new Uint32Array(countMeshes), // For each mesh, an index to its first element in data.edgeIndices
+        eachMeshDecodeMatricesPortion: new Uint32Array(countMeshes), // For each mesh, an index to its first element in data.decodeMatrices
+        eachMeshColor: new Uint8Array(countMeshes * 4), // For each mesh, an RGBA color [0..255,0..255,0..255,0..255]
 
-        entityIDs: [],
-        entityMeshes: new Uint32Array(entities.length),
-        entityIsObjects: new Uint8Array(entities.length),
-        entityMeshIds: new Uint32Array(countEntityMeshIds),
-        entityMatrices: new Float32Array(entities.length * 16),
-        entityUsesInstancing: new Uint8Array(entities.length)
+        meshInstances: new Uint32Array(countMeshInstances), // For each entity, a list of indices into eachMeshPositionsAndNormalsPortion, eachMeshIndicesPortion, eachMeshEdgeIndicesPortion, eachMeshDecodeMatricesPortion and eachMeshColor
+        
+        eachEntityId: [], // For each entity, an ID string
+        eachEntityMeshInstancesPortion: new Uint32Array(entities.length), // For each entity, the index of the the first element of meshInstances used by the entity
+        eachEntityMatrix: new Float32Array(entities.length * 16)
     };
 
     countPositions = 0;
@@ -77,23 +76,23 @@ function getModelData(model) {
 
     // Meshes
 
-    for (let i = 0, len = meshes.length; i < len; i++) {
+    for (let meshIndex = 0, len = meshes.length; meshIndex < len; meshIndex++) {
 
-        const mesh = meshes [i];
+        const mesh = meshes [meshIndex];
 
         data.positions.set(mesh.positions, countPositions);
         data.normals.set(mesh.normals, countNormals);
         data.indices.set(mesh.indices, countIndices);
         data.edgeIndices.set(mesh.edgeIndices, countEdgeIndices);
 
-        data.meshPositions [i] = countPositions;
-        data.meshIndices [i] = countIndices;
-        data.meshEdgesIndices [i] = countEdgeIndices;
-        data.meshDecodeMatrices[i] = mesh.decodeMatrixIdx;
-        data.meshColors[countColors + 0] = Math.floor(mesh.color[0] * 255);
-        data.meshColors[countColors + 1] = Math.floor(mesh.color[1] * 255);
-        data.meshColors[countColors + 2] = Math.floor(mesh.color[2] * 255);
-        data.meshColors[countColors + 3] = Math.floor(mesh.opacity * 255);
+        data.eachMeshPositionsAndNormalsPortion [meshIndex] = countPositions;
+        data.eachMeshIndicesPortion [meshIndex] = countIndices;
+        data.eachMeshEdgeIndicesPortion [meshIndex] = countEdgeIndices;
+        data.eachMeshDecodeMatricesPortion[meshIndex] = mesh.decodeMatrixIdx;
+        data.eachMeshColor[countColors + 0] = Math.floor(mesh.color[0] * 255);
+        data.eachMeshColor[countColors + 1] = Math.floor(mesh.color[1] * 255);
+        data.eachMeshColor[countColors + 2] = Math.floor(mesh.color[2] * 255);
+        data.eachMeshColor[countColors + 3] = Math.floor(mesh.opacity * 255);
 
         countPositions += mesh.positions.length;
         countNormals += mesh.normals.length;
@@ -104,18 +103,16 @@ function getModelData(model) {
 
     // Entities
 
-    var countEntitiesMeshes = 0;
+    countMeshInstances = 0;
 
     for (let i = 0, len = entities.length; i < len; i++) {
         const entity = entities [i];
-        data.entityIDs [i] = entity.id;
-        data.entityMeshes[i] = countEntitiesMeshes;
-        data.entityIsObjects [i] = entity.isObject ? 1 : 0;
-        data.entityUsesInstancing [i] = entity.usesInstancing ? 1 : 0;
+        data.eachEntityId [i] = entity.id;
+        data.eachEntityMeshInstancesPortion[i] = countMeshInstances;
         for (let j = 0, lenJ = entity.meshIds.length; j < lenJ; j++) {
-            data.entityMeshIds [countEntitiesMeshes++] = entity.meshIds [j];
+            data.meshInstances [countMeshInstances++] = entity.meshIds [j];
         }
-        data.entityMatrices.set(entity.matrix, i * 16);
+        data.eachEntityMatrix.set(entity.matrix, i * 16);
     }
 
     return data;
@@ -130,21 +127,23 @@ function deflateData(data) {
         edgeIndices: pako.deflate(data.edgeIndices.buffer),
         decodeMatrices: pako.deflate(data.decodeMatrices.buffer),
 
-        meshPositions: pako.deflate(data.meshPositions.buffer),
-        meshIndices: pako.deflate(data.meshIndices.buffer),
-        meshEdgesIndices: pako.deflate(data.meshEdgesIndices.buffer),
-        meshDecodeMatrices: pako.deflate(data.meshDecodeMatrices.buffer),
-        meshColors: pako.deflate(data.meshColors.buffer),
+        eachMeshPositionsAndNormalsPortion: pako.deflate(data.eachMeshPositionsAndNormalsPortion.buffer),
+        eachMeshIndicesPortion: pako.deflate(data.eachMeshIndicesPortion.buffer),
+        eachMeshEdgeIndicesPortion: pako.deflate(data.eachMeshEdgeIndicesPortion.buffer),
+        eachMeshDecodeMatricesPortion: pako.deflate(data.eachMeshDecodeMatricesPortion.buffer),
+        eachMeshColor: pako.deflate(data.eachMeshColor.buffer),
 
-        entityIDs: pako.deflate(JSON.stringify(data.entityIDs)
-            .replace(/[\u007F-\uFFFF]/g, function (chr) {      // Produce only ASCII-chars, so that the data can be inflated later
-                return "\\u" + ("0000" + chr.charCodeAt(0).toString(16)).substr(-4)
-            })),
-        entityMeshes: pako.deflate(data.entityMeshes.buffer),
-        entityIsObjects: pako.deflate(data.entityIsObjects),
-        entityMeshIds: pako.deflate(data.entityMeshIds.buffer),
-        entityMatrices: pako.deflate(data.entityMatrices.buffer),
-        entityUsesInstancing: pako.deflate(data.entityUsesInstancing),
+        // Each entity has a portion of meshInstances.
+        // These portions can be shared with other entities.
+        // When shared, these portions are always shared as a unit.
+
+        meshInstances: pako.deflate(data.meshInstances.buffer),
+
+        eachEntityId: pako.deflate(JSON.stringify(data.eachEntityId).replace(/[\u007F-\uFFFF]/g, function (chr) { // Produce only ASCII-chars, so that the data can be inflated later
+            return "\\u" + ("0000" + chr.charCodeAt(0).toString(16)).substr(-4)
+        })),
+        eachEntityMeshInstancesPortion: pako.deflate(data.eachEntityMeshInstancesPortion.buffer),
+        eachEntityMatrix: pako.deflate(data.eachEntityMatrix.buffer)
     };
 }
 
@@ -158,18 +157,17 @@ function createArrayBuffer(deflatedData) {
         deflatedData.edgeIndices,
         deflatedData.decodeMatrices,
 
-        deflatedData.meshPositions,
-        deflatedData.meshIndices,
-        deflatedData.meshEdgesIndices,
-        deflatedData.meshDecodeMatrices,
-        deflatedData.meshColors,
+        deflatedData.eachMeshPositionsAndNormalsPortion,
+        deflatedData.eachMeshIndicesPortion,
+        deflatedData.eachMeshEdgeIndicesPortion,
+        deflatedData.eachMeshDecodeMatricesPortion,
+        deflatedData.eachMeshColor,
 
-        deflatedData.entityIDs,
-        deflatedData.entityMeshes,
-        deflatedData.entityIsObjects,
-        deflatedData.entityMeshIds,
-        deflatedData.entityMatrices,
-        deflatedData.entityUsesInstancing,
+        deflatedData.meshInstances,
+
+        deflatedData.eachEntityId,
+        deflatedData.eachEntityMeshInstancesPortion,
+        deflatedData.eachEntityMatrix
     ]);
 }
 
