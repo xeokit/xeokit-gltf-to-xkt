@@ -42,7 +42,7 @@ function glTFToModel(gltf, options = {}) {
         numObjects: 0,
         nodes: [],
         _meshInstancesById: {},
-        _meshIdToPrimitiveIdsCache: {},
+        _glTFMeshPrimitiveIds: {},
         numOnlyOnceMeshes: 0,
         numMeshInstances: 0
     };
@@ -343,9 +343,15 @@ function parseNode(parsingCtx, glTFNode, matrix) {
     }
 
     if (glTFNode.mesh !== undefined) {
+
         const meshInfo = gltf.meshes[glTFNode.mesh];
 
+        // A glTF mesh contains a number of primitives.
+        // For each primitive, we create a mesh in our Model.
+        // We save the list of IDs for our Model meshes against the glTF mesh ID.
+
         if (meshInfo) {
+
             let meshOnlyUsedOnce = (parsingCtx._meshInstancesById [glTFNode.mesh] === 1);
 
             var meshMatrix, entityMatrix;
@@ -361,8 +367,12 @@ function parseNode(parsingCtx, glTFNode, matrix) {
             const numPrimitives = meshInfo.primitives.length;
 
             if (numPrimitives > 0) {
-                if (!(glTFNode.mesh in parsingCtx._meshIdToPrimitiveIdsCache)) {
-                    const meshIds = [];
+
+                let primitiveIds = parsingCtx._glTFMeshPrimitiveIds[glTFNode.mesh];
+
+                if (!primitiveIds) {
+
+                    primitiveIds = [];
 
                     for (let i = 0; i < numPrimitives; i++) {
 
@@ -372,7 +382,8 @@ function parseNode(parsingCtx, glTFNode, matrix) {
 
                         const meshCfg = {
                             id: model.id + "." + parsingCtx.numObjects,
-                            matrix: meshMatrix,
+                            entityId: model.entities.length,
+                            matrix: meshMatrix, // Matrix on mesh is used to bake transform for mesh when mesh only used once
                             color: materialInfo ? materialInfo._rgbaColor : new Float32Array([1.0, 1.0, 1.0, 1.0]),
                             opacity: materialInfo ? materialInfo._rgbaColor[3] : 1.0,
                             instanced: (!meshOnlyUsedOnce)
@@ -382,26 +393,26 @@ function parseNode(parsingCtx, glTFNode, matrix) {
 
                         model.createMesh(meshCfg);
 
-                        meshIds.push(parsingCtx.numObjects);
+                        primitiveIds.push(parsingCtx.numObjects);
 
                         parsingCtx.numObjects++
                     }
 
-                    parsingCtx._meshIdToPrimitiveIdsCache [glTFNode.mesh] = meshIds;
+                    parsingCtx._glTFMeshPrimitiveIds [glTFNode.mesh] = primitiveIds;
                 }
 
                 model.createEntity({
                     id: glTFNode.name,
-                    isObject: (!!glTFNode.name),
-                    meshIds: parsingCtx._meshIdToPrimitiveIdsCache [glTFNode.mesh],
                     matrix: entityMatrix,
+                    isObject: (!!glTFNode.name),
+                    meshIds: parsingCtx._glTFMeshPrimitiveIds [glTFNode.mesh],
                     usesInstancing: (!meshOnlyUsedOnce)
                 });
 
                 if (meshOnlyUsedOnce) {
                     parsingCtx.numOnlyOnceMeshes++;
                 } else {
-                    parsingCtx.numMeshInstances += parsingCtx._meshIdToPrimitiveIdsCache [glTFNode.mesh].length;
+                    parsingCtx.numMeshInstances += parsingCtx._glTFMeshPrimitiveIds [glTFNode.mesh].length;
                 }
             }
         }
