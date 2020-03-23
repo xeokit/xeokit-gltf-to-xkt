@@ -1,6 +1,6 @@
 const math = require('./math');
 
-var quantizePositions = function (positions, lenPositions, aabb, quantizedPositions, log) {
+var quantizePositions = function (positions, lenPositions, aabb, quantizedPositions) {
     const xmin = aabb[0];
     const ymin = aabb[1];
     const zmin = aabb[2];
