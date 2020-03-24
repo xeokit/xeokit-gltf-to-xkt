@@ -18,19 +18,19 @@ class Model {
     constructor() {
 
         this.decodeMatrices = [];
-        this.meshes = [];
+        this.primitives = [];
         this.entities = [];
 
-        // Used by _startDecodeMat(), _addMeshToDecodeMat() and _finalizeDecodeMat()
+        // Used by _startDecodeMat(), _addPrimitiveToDecodeMat() and _finalizeDecodeMat()
 
         this._tileAABB = math.AABB3();
         this._tileDecodeMatrix = math.mat4();
-        this._tileMeshes = [];
-        this._numTileMeshes = 0;
+        this._tilePrimitives = [];
+        this._numTilePrimitives = 0;
     }
 
-    createMesh(params) {
-        this.meshes.push(params);
+    createPrimitive(params) {
+        this.primitives.push(params);
     }
 
     createEntity(params) {
@@ -39,24 +39,24 @@ class Model {
 
     finalize() {
 
-        const batchedMeshes = [];
-        const instancedMeshes = [];
+        const batchedPrimitives = [];
+        const instancedPrimitives = [];
 
-        // Transform positions of each mesh that is not reused (ie. batched)
-        // Calculate AABB for each mesh
-        // Compress normals of all meshes
+        // Transform positions of each primitive that is not reused (ie. batched)
+        // Calculate AABB for each primitive
+        // Compress normals of all primitives
 
-        for (let i = 0, len = this.meshes.length; i < len; i++) {
+        for (let i = 0, len = this.primitives.length; i < len; i++) {
 
-            const mesh = this.meshes [i];
-            const batched = (!mesh.instanced);
+            const primitive = this.primitives [i];
+            const batched = (!primitive.instanced);
 
-            mesh.aabb = math.collapseAABB3();
-            const matrix = mesh.matrix;
+            primitive.aabb = math.collapseAABB3();
+            const matrix = primitive.matrix;
 
-            if (batched) { // Non reused meshes
+            if (batched) { // Non reused primitives
 
-                const positions = mesh.positions.slice();
+                const positions = primitive.positions.slice();
 
                 for (let j = 0, lenj = positions.length; j < lenj; j += 3) {
 
@@ -66,20 +66,20 @@ class Model {
 
                     math.transformPoint4(matrix, tempVec4a, tempVec4b);
 
-                    math.expandAABB3Point3(mesh.aabb, tempVec4b);
+                    math.expandAABB3Point3(primitive.aabb, tempVec4b);
 
                     positions[j] = tempVec4b[0];
                     positions[j + 1] = tempVec4b[1];
                     positions[j + 2] = tempVec4b[2];
                 }
 
-                mesh.positions = positions;
+                primitive.positions = positions;
 
-                batchedMeshes.push(mesh);
+                batchedPrimitives.push(primitive);
 
-            } else { // Instanced mesh
+            } else { // Instanced primitive
 
-                const positions = mesh.positions;
+                const positions = primitive.positions;
 
                 for (let j = 0, lenj = positions.length; j < lenj; j += 3) {
 
@@ -87,97 +87,97 @@ class Model {
                     tempVec4a[1] = positions[j + 1];
                     tempVec4a[2] = positions[j + 2];
 
-                    math.expandAABB3Point3(mesh.aabb, tempVec4a);
+                    math.expandAABB3Point3(primitive.aabb, tempVec4a);
                 }
 
-                instancedMeshes.push(mesh);
+                instancedPrimitives.push(primitive);
             }
 
             // Compress normals
 
             //-------------------------------------------------------
-            // TODO: Normals for non-shared meshes in World space?
-            // Normals for shared meshes in model space?
+            // TODO: Normals for non-shared primitives in World space?
+            // Normals for shared primitives in model space?
             //-------------------------------------------------------
 
-            const modelNormalMatrix = (mesh.matrix) ? math.inverseMat4(math.transposeMat4(mesh.matrix, tempMat4b), tempMat4) : math.identityMat4(tempMat4);
-            const encodedNormals = new Int8Array(mesh.normals.length);
+            const modelNormalMatrix = (primitive.matrix) ? math.inverseMat4(math.transposeMat4(primitive.matrix, tempMat4b), tempMat4) : math.identityMat4(tempMat4);
+            const encodedNormals = new Int8Array(primitive.normals.length);
 
-            geometryCompression.transformAndOctEncodeNormals(modelNormalMatrix, mesh.normals, mesh.normals.length, encodedNormals, 0);
+            geometryCompression.transformAndOctEncodeNormals(modelNormalMatrix, primitive.normals, primitive.normals.length, encodedNormals, 0);
 
-            mesh.normals = encodedNormals;
+            primitive.normals = encodedNormals;
         }
 
 
         // this._startDecodeMat();
-        // for (let i = 0, len = instancedMeshes.length; i < len; i++) {
-        //     const mesh = instancedMeshes[i];
-        //     this._addMeshToDecodeMat(mesh)
+        // for (let i = 0, len = instancedPrimitives.length; i < len; i++) {
+        //     const primitive = instancedPrimitives[i];
+        //     this._addPrimitiveToDecodeMat(primitive)
         // }
         // this._finalizeDecodeMat();
 
         // this._startDecodeMat();
-        // for (let i = 0, len = batchedMeshes.length; i < len; i++) {
-        //     const mesh = batchedMeshes[i];
-        //     this._addMeshToDecodeMat(mesh);
+        // for (let i = 0, len = batchedPrimitives.length; i < len; i++) {
+        //     const primitive = batchedPrimitives[i];
+        //     this._addPrimitiveToDecodeMat(primitive);
         // }
         // this._finalizeDecodeMat();
         //
         // this._startDecodeMat();
-        // for (let i = 0, len = instancedMeshes.length; i < len; i++) {
-        //     const mesh = instancedMeshes[i];
-        //     this._addMeshToDecodeMat(mesh)
+        // for (let i = 0, len = instancedPrimitives.length; i < len; i++) {
+        //     const primitive = instancedPrimitives[i];
+        //     this._addPrimitiveToDecodeMat(primitive)
         // }
         // this._finalizeDecodeMat();
         //
 
-        this._buildDecodeMatrices(batchedMeshes);
+        this._buildDecodeMatrices(batchedPrimitives);
     }
 
 
-    _buildDecodeMatrices(meshes) {
-        const kdTree = this._createKDTree(meshes);
+    _buildDecodeMatrices(primitives) {
+        const kdTree = this._createKDTree(primitives);
         this._createDecodeMatsFromKDTree(kdTree);
     }
 
-    _createKDTree(meshes) {
+    _createKDTree(primitives) {
         const aabb = math.collapseAABB3();
-        for (let i = 0, len = meshes.length; i < len; i++) {
-            const mesh = meshes[i];
-            math.expandAABB3(aabb, mesh.aabb);
+        for (let i = 0, len = primitives.length; i < len; i++) {
+            const primitive = primitives[i];
+            math.expandAABB3(aabb, primitive.aabb);
         }
         const root = {
             aabb: aabb
         };
-        for (let i = 0, len = meshes.length; i < len; i++) {
-            const mesh = meshes[i];
+        for (let i = 0, len = primitives.length; i < len; i++) {
+            const primitive = primitives[i];
             const depth = 0;
-            this._insertMeshIntoKDTree(root, mesh, depth + 1);
+            this._insertPrimitiveIntoKDTree(root, primitive, depth + 1);
         }
         return root;
     }
 
-    _insertMeshIntoKDTree(node, mesh, depth) {
+    _insertPrimitiveIntoKDTree(node, primitive, depth) {
 
-        const meshAABB = mesh.aabb;
+        const primitiveAABB = primitive.aabb;
 
         if (depth >= KD_TREE_MAX_DEPTH) {
-            node.meshes = node.meshes || [];
-            node.meshes.push(mesh);
-            math.expandAABB3(node.aabb, meshAABB);
+            node.primitives = node.primitives || [];
+            node.primitives.push(primitive);
+            math.expandAABB3(node.aabb, primitiveAABB);
             return;
         }
 
         if (node.left) {
-            if (math.containsAABB3(node.left.aabb, meshAABB)) {
-                this._insertMeshIntoKDTree(node.left, mesh, depth + 1);
+            if (math.containsAABB3(node.left.aabb, primitiveAABB)) {
+                this._insertPrimitiveIntoKDTree(node.left, primitive, depth + 1);
                 return;
             }
         }
 
         if (node.right) {
-            if (math.containsAABB3(node.right.aabb, meshAABB)) {
-                this._insertMeshIntoKDTree(node.right, mesh, depth + 1);
+            if (math.containsAABB3(node.right.aabb, primitiveAABB)) {
+                this._insertPrimitiveIntoKDTree(node.right, primitive, depth + 1);
                 return;
             }
         }
@@ -203,8 +203,8 @@ class Model {
             node.left = {
                 aabb: aabbLeft
             };
-            if (math.containsAABB3(aabbLeft, meshAABB)) {
-                this._insertMeshIntoKDTree(node.left, mesh, depth + 1);
+            if (math.containsAABB3(aabbLeft, primitiveAABB)) {
+                this._insertPrimitiveIntoKDTree(node.left, primitive, depth + 1);
                 return;
             }
         }
@@ -215,24 +215,24 @@ class Model {
             node.right = {
                 aabb: aabbRight
             };
-            if (math.containsAABB3(aabbRight, meshAABB)) {
-                this._insertMeshIntoKDTree(node.right, mesh, depth + 1);
+            if (math.containsAABB3(aabbRight, primitiveAABB)) {
+                this._insertPrimitiveIntoKDTree(node.right, primitive, depth + 1);
                 return;
             }
         }
 
-        node.meshes = node.meshes || [];
-        node.meshes.push(mesh);
-        math.expandAABB3(node.aabb, meshAABB);
+        node.primitives = node.primitives || [];
+        node.primitives.push(primitive);
+        math.expandAABB3(node.aabb, primitiveAABB);
     }
 
     _createDecodeMatsFromKDTree(kdNode) {
-        if (kdNode.meshes && kdNode.meshes.length > 0) {
+        if (kdNode.primitives && kdNode.primitives.length > 0) {
             this._startDecodeMat();
-            const meshes = kdNode.meshes;
-            for (let i = 0, len = meshes.length; i < len; i++) {
-                const mesh = meshes[i];
-                this._addMeshToDecodeMat(mesh)
+            const primitives = kdNode.primitives;
+            for (let i = 0, len = primitives.length; i < len; i++) {
+                const primitive = primitives[i];
+                this._addPrimitiveToDecodeMat(primitive)
             }
             this._finalizeDecodeMat();
         }
@@ -245,21 +245,21 @@ class Model {
     }
 
     _startDecodeMat() {
-        this._numTileMeshes = 0;
+        this._numTilePrimitives = 0;
     }
 
-    _addMeshToDecodeMat(mesh) {
-        mesh.decodeMatrixIdx = this.decodeMatrices.length;
-        this._tileMeshes[this._numTileMeshes++] = mesh;
+    _addPrimitiveToDecodeMat(primitive) {
+        primitive.decodeMatrixIdx = this.decodeMatrices.length;
+        this._tilePrimitives[this._numTilePrimitives++] = primitive;
     }
 
     _finalizeDecodeMat() {
 
         const tileAABB = math.collapseAABB3();
 
-        for (let i = 0; i < this._numTileMeshes; i++) {
-            const mesh = this._tileMeshes [i];
-            const positions = mesh.positions;
+        for (let i = 0; i < this._numTilePrimitives; i++) {
+            const primitive = this._tilePrimitives [i];
+            const positions = primitive.positions;
             for (let j = 0, lenj = positions.length; j < lenj; j += 3) {
                 tempVec4a[0] = positions[j];
                 tempVec4a[1] = positions[j + 1];
@@ -276,11 +276,11 @@ class Model {
             this.decodeMatrices.push(this._tileDecodeMatrix[i]);
         }
 
-        for (let i = 0; i < this._numTileMeshes; i++) {
-            const mesh = this._tileMeshes [i];
-            const quantizedPositions = new Uint16Array(mesh.positions.length);
-            geometryCompression.quantizePositions(mesh.positions, mesh.positions.length, tileAABB, quantizedPositions);
-            mesh.positions = quantizedPositions;
+        for (let i = 0; i < this._numTilePrimitives; i++) {
+            const primitive = this._tilePrimitives [i];
+            const quantizedPositions = new Uint16Array(primitive.positions.length);
+            geometryCompression.quantizePositions(primitive.positions, primitive.positions.length, tileAABB, quantizedPositions);
+            primitive.positions = quantizedPositions;
         }
 
     }

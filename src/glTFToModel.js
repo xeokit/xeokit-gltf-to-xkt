@@ -380,18 +380,16 @@ function parseNode(parsingCtx, glTFNode, matrix) {
                         const materialIndex = primitiveInfo.material;
                         const materialInfo = (materialIndex !== null && materialIndex !== undefined) ? gltf.materials[materialIndex] : null;
 
-                        const meshCfg = {
-                            id: model.id + "." + parsingCtx.numObjects,
-                            entityId: model.entities.length,
+                        const primitiveCfg = {
                             matrix: meshMatrix, // Matrix on mesh is used to bake transform for mesh when mesh only used once
                             color: materialInfo ? materialInfo._rgbaColor : new Float32Array([1.0, 1.0, 1.0, 1.0]),
                             opacity: materialInfo ? materialInfo._rgbaColor[3] : 1.0,
                             instanced: (!meshOnlyUsedOnce)
                         };
 
-                        parsePrimitiveGeometry(parsingCtx, primitiveInfo, meshCfg);
+                        parsePrimitiveGeometry(parsingCtx, primitiveInfo, primitiveCfg);
 
-                        model.createMesh(meshCfg);
+                        model.createPrimitive(primitiveCfg);
 
                         primitiveIds.push(parsingCtx.numObjects);
 
@@ -402,10 +400,9 @@ function parseNode(parsingCtx, glTFNode, matrix) {
                 }
 
                 model.createEntity({
-                    id: glTFNode.name,
+                    id: glTFNode.name, // ################### TODO: what if no name?
                     matrix: entityMatrix,
-                    isObject: (!!glTFNode.name),
-                    meshIds: parsingCtx._glTFMeshPrimitiveIds [glTFNode.mesh],
+                    primitiveIds: parsingCtx._glTFMeshPrimitiveIds [glTFNode.mesh],
                     usesInstancing: (!meshOnlyUsedOnce)
                 });
 
