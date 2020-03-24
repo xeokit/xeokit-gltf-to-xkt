@@ -39,12 +39,11 @@ function glTFToModel(gltf, options = {}) {
         basePath: options.basePath || "./",
         gltf: gltf,
         model: model,
-        numObjects: 0,
+        numPrimitivesCreated: 0,
+        numEntitiesCreated: 0,
         nodes: [],
-        _meshInstancesById: {},
-        _glTFMeshPrimitiveIds: {},
-        numOnlyOnceMeshes: 0,
-        numMeshInstances: 0
+        meshInstanceCounts: {},
+        _meshPrimitiveIds: {}
     };
 
     return new Promise((resolve, reject) => {
@@ -57,12 +56,6 @@ function glTFToModel(gltf, options = {}) {
             parseDefaultScene(parsingCtx);
 
             model.finalize();
-
-            console.log("Number of objects: " + parsingCtx.numObjects);
-            console.log("Only once meshes: " + parsingCtx.numOnlyOnceMeshes);
-            console.log("More than once meshes: " + (parsingCtx.numObjects - parsingCtx.numOnlyOnceMeshes));
-            console.log("Total mesh instances: " + parsingCtx.numMeshInstances);
-            console.log("Instancing factor " + ((parsingCtx.numMeshInstances - parsingCtx.numOnlyOnceMeshes) / parsingCtx.numMeshInstances * 100).toFixed(2) + "%");
 
             resolve(model);
         });
@@ -265,11 +258,13 @@ function prepareNodeCountMeshes(parsingCtx, glTFNode) {
 
     const gltf = parsingCtx.gltf;
 
-    if (glTFNode.mesh !== undefined) {
-        if (glTFNode.mesh in parsingCtx._meshInstancesById) {
-            parsingCtx._meshInstancesById [glTFNode.mesh]++;
+    const meshId = glTFNode.mesh;
+
+    if (meshId !== undefined) {
+        if (meshId in parsingCtx.meshInstanceCounts) {
+            parsingCtx.meshInstanceCounts [meshId]++;
         } else {
-            parsingCtx._meshInstancesById [glTFNode.mesh] = 1;
+            parsingCtx.meshInstanceCounts [meshId] = 1;
         }
     }
 
@@ -342,46 +337,54 @@ function parseNode(parsingCtx, glTFNode, matrix) {
         }
     }
 
-    if (glTFNode.mesh !== undefined) {
+    const meshId = glTFNode.mesh;
 
-        const meshInfo = gltf.meshes[glTFNode.mesh];
+    if (meshId !== undefined) {
 
-        // A glTF mesh contains a number of primitives.
-        // For each primitive, we create a mesh in our Model.
-        // We save the list of IDs for our Model meshes against the glTF mesh ID.
+        const meshInfo = gltf.meshes[meshId];
 
         if (meshInfo) {
 
-            let meshOnlyUsedOnce = (parsingCtx._meshInstancesById [glTFNode.mesh] === 1);
+            let meshOnlyUsedOnce = (parsingCtx.meshInstanceCounts [meshId] === 1);
 
-            var meshMatrix, entityMatrix;
+            let primitiveMatrix;
+            let entityMatrix;
 
             if (meshOnlyUsedOnce) {
-                meshMatrix = matrix ? matrix.slice() : math.identityMat4();
+
+                // glTF meshes do not share primitives - each primitive belongs to one mesh
+                // Primitives in a mesh that's not shared get baked into World-space
+
+                primitiveMatrix = matrix ? matrix.slice() : math.identityMat4();
                 entityMatrix = math.identityMat4();
+
             } else {
-                meshMatrix = math.identityMat4();
+
+                // Primitives in a mesh that is shared are left in Model-space
+                // Entities that instance those primitives will use their matrix to transform the primitives into World-space
+
+                primitiveMatrix = math.identityMat4();
                 entityMatrix = matrix ? matrix.slice() : math.identityMat4();
             }
 
-            const numPrimitives = meshInfo.primitives.length;
+            const numPrimitivesInMesh = meshInfo.primitives.length;
 
-            if (numPrimitives > 0) {
+            if (numPrimitivesInMesh > 0) {
 
-                let primitiveIds = parsingCtx._glTFMeshPrimitiveIds[glTFNode.mesh];
+                let primitiveIds = parsingCtx._meshPrimitiveIds[meshId];
 
                 if (!primitiveIds) {
 
                     primitiveIds = [];
 
-                    for (let i = 0; i < numPrimitives; i++) {
+                    for (let i = 0; i < numPrimitivesInMesh; i++) {
 
                         const primitiveInfo = meshInfo.primitives[i];
                         const materialIndex = primitiveInfo.material;
                         const materialInfo = (materialIndex !== null && materialIndex !== undefined) ? gltf.materials[materialIndex] : null;
 
                         const primitiveCfg = {
-                            matrix: meshMatrix, // Matrix on mesh is used to bake transform for mesh when mesh only used once
+                            matrix: primitiveMatrix, // Matrix on mesh is used to bake transform for mesh when mesh only used once
                             color: materialInfo ? materialInfo._rgbaColor : new Float32Array([1.0, 1.0, 1.0, 1.0]),
                             opacity: materialInfo ? materialInfo._rgbaColor[3] : 1.0,
                             instanced: (!meshOnlyUsedOnce)
@@ -391,26 +394,27 @@ function parseNode(parsingCtx, glTFNode, matrix) {
 
                         model.createPrimitive(primitiveCfg);
 
-                        primitiveIds.push(parsingCtx.numObjects);
+                        const primitiveId = parsingCtx.numPrimitivesCreated;
 
-                        parsingCtx.numObjects++
+                       // console.log("create primitive: " + primitiveId);
+
+                        primitiveIds.push(primitiveId);
+
+                        parsingCtx.numPrimitivesCreated++
                     }
 
-                    parsingCtx._glTFMeshPrimitiveIds [glTFNode.mesh] = primitiveIds;
+                    parsingCtx._meshPrimitiveIds [meshId] = primitiveIds;
                 }
+
+               // console.log("entity " + parsingCtx.numEntitiesCreated + ": primitives = [ " + primitiveIds + " ]");
 
                 model.createEntity({
-                    id: glTFNode.name, // ################### TODO: what if no name?
+                    id: glTFNode.name || "entity" + parsingCtx.numEntitiesCreated,
                     matrix: entityMatrix,
-                    primitiveIds: parsingCtx._glTFMeshPrimitiveIds [glTFNode.mesh],
-                    usesInstancing: (!meshOnlyUsedOnce)
+                    primitiveIds: primitiveIds
                 });
 
-                if (meshOnlyUsedOnce) {
-                    parsingCtx.numOnlyOnceMeshes++;
-                } else {
-                    parsingCtx.numMeshInstances += parsingCtx._glTFMeshPrimitiveIds [glTFNode.mesh].length;
-                }
+                parsingCtx.numEntitiesCreated++;
             }
         }
     }
@@ -429,30 +433,30 @@ function parseNode(parsingCtx, glTFNode, matrix) {
     }
 }
 
-function parsePrimitiveGeometry(parsingCtx, primitiveInfo, result) {
+function parsePrimitiveGeometry(parsingCtx, primitiveInfo, primitiveCfg) {
     const attributes = primitiveInfo.attributes;
     if (!attributes) {
         return;
     }
-    result.primitive = "triangles";
+    primitiveCfg.primitive = "triangles";
     const accessors = parsingCtx.gltf.accessors;
     const indicesIndex = primitiveInfo.indices;
     if (indicesIndex !== null && indicesIndex !== undefined) {
         const accessorInfo = accessors[indicesIndex];
-        result.indices = parseAccessorTypedArray(parsingCtx, accessorInfo);
+        primitiveCfg.indices = parseAccessorTypedArray(parsingCtx, accessorInfo);
     }
     const positionsIndex = attributes.POSITION;
     if (positionsIndex !== null && positionsIndex !== undefined) {
         const accessorInfo = accessors[positionsIndex];
-        result.positions = parseAccessorTypedArray(parsingCtx, accessorInfo);
+        primitiveCfg.positions = parseAccessorTypedArray(parsingCtx, accessorInfo);
     }
     const normalsIndex = attributes.NORMAL;
     if (normalsIndex !== null && normalsIndex !== undefined) {
         const accessorInfo = accessors[normalsIndex];
-        result.normals = parseAccessorTypedArray(parsingCtx, accessorInfo);
+        primitiveCfg.normals = parseAccessorTypedArray(parsingCtx, accessorInfo);
     }
-    if (result.indices) {
-        result.edgeIndices = buildEdgeIndices(result.positions, result.indices, null, 10);
+    if (primitiveCfg.indices) {
+        primitiveCfg.edgeIndices = buildEdgeIndices(primitiveCfg.positions, primitiveCfg.indices, null, 10);
     }
 }
 

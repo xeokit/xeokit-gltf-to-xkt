@@ -25,6 +25,9 @@ function getModelData(model) {
     const entities = model.entities;
     const primitives = model.primitives;
 
+    const numPrimitives = model.primitives.length;
+    const numEntities = model.entities.length;
+
     let countPositions = 0;
     let countNormals = 0;
     let countIndices = 0;
@@ -32,8 +35,10 @@ function getModelData(model) {
     let countPrimitives = primitives.length;
     let countColors = 0;
 
-    for (let i = 0, len = primitives.length; i < len; i++) {
-        const primitive = primitives [i];
+    for (let primitiveIndex = 0; primitiveIndex < numPrimitives; primitiveIndex++) {
+
+        const primitive = primitives [primitiveIndex];
+
         countPositions += primitive.positions.length;
         countNormals += primitive.normals.length;
         countIndices += primitive.indices.length;
@@ -42,9 +47,12 @@ function getModelData(model) {
 
     let countPrimitiveInstances = 0;
 
-    for (let i = 0, len = entities.length; i < len; i++) {
-        const entity = entities[i];
-        countPrimitiveInstances += entity.primitiveIds.length;
+    for (let entityIndex = 0; entityIndex < numEntities; entityIndex++) {
+
+        const entity = entities[entityIndex];
+        const numEntityPrimitives = entity.primitiveIds.length;
+
+        countPrimitiveInstances += numEntityPrimitives;
     }
 
     const data = {
@@ -62,7 +70,7 @@ function getModelData(model) {
         eachPrimitiveColor: new Uint8Array(countPrimitives * 4), // For each primitive, an RGBA color [0..255,0..255,0..255,0..255]
 
         primitiveInstances: new Uint32Array(countPrimitiveInstances), // For each entity, a list of indices into eachPrimitivePositionsAndNormalsPortion, eachPrimitiveIndicesPortion, eachPrimitiveEdgeIndicesPortion, eachPrimitiveDecodeMatricesPortion and eachPrimitiveColor
-        
+
         eachEntityId: [], // For each entity, an ID string
         eachEntityPrimitiveInstancesPortion: new Uint32Array(entities.length), // For each entity, the index of the the first element of primitiveInstances used by the entity
         eachEntityMatrix: new Float32Array(entities.length * 16)
@@ -76,7 +84,7 @@ function getModelData(model) {
 
     // Primitives
 
-    for (let primitiveIndex = 0, len = primitives.length; primitiveIndex < len; primitiveIndex++) {
+    for (let primitiveIndex = 0; primitiveIndex < numPrimitives; primitiveIndex++) {
 
         const primitive = primitives [primitiveIndex];
 
@@ -105,14 +113,25 @@ function getModelData(model) {
 
     countPrimitiveInstances = 0;
 
-    for (let i = 0, len = entities.length; i < len; i++) {
-        const entity = entities [i];
-        data.eachEntityId [i] = entity.id;
-        data.eachEntityPrimitiveInstancesPortion[i] = countPrimitiveInstances;
-        for (let j = 0, lenJ = entity.primitiveIds.length; j < lenJ; j++) {
-            data.primitiveInstances [countPrimitiveInstances++] = entity.primitiveIds [j];
+    for (let entityIndex = 0; entityIndex < numEntities; entityIndex++) {
+
+        const entity = entities [entityIndex];
+        const entityPrimitiveIds = entity.primitiveIds;
+        const numPrimitivesInEntity = entityPrimitiveIds.length;
+
+        data.eachEntityId [entityIndex] = entity.id;
+        data.eachEntityMatrix.set(entity.matrix, entityIndex * 16);
+
+        data.eachEntityPrimitiveInstancesPortion[entityIndex] = countPrimitiveInstances;
+
+        //console.log(entityIndex + ": firstEntityPrimitiveInstanceIndex = " + countPrimitiveInstances);
+
+        for (let j = 0; j < numPrimitivesInEntity; j++) {
+            data.primitiveInstances [countPrimitiveInstances++] = entityPrimitiveIds [j];
         }
-        data.eachEntityMatrix.set(entity.matrix, i * 16);
+
+        // console.log(entityIndex + ": primitives = " + entityPrimitiveIds);
+
     }
 
     return data;
@@ -177,7 +196,7 @@ function createArrayBuffer(deflatedData) {
 
         deflatedData.eachEntityId,
         deflatedData.eachEntityPrimitiveInstancesPortion,
-        deflatedData.eachEntityMatrix
+        deflatedData.eachEntityMatrix // TODO: entities with batched primitives don't need matrices, so this is wasteful  - solution: put matrices in array, with identity matrix at 0
     ]);
 }
 

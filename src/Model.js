@@ -17,9 +17,9 @@ class Model {
 
     constructor() {
 
-        this.decodeMatrices = [];
         this.primitives = [];
         this.entities = [];
+        this.decodeMatrices = [];
 
         // Used by _startDecodeMat(), _addPrimitiveToDecodeMat() and _finalizeDecodeMat()
 
@@ -39,45 +39,21 @@ class Model {
 
     finalize() {
 
+        // 1. On each instanced primitive: create Model-space AABB
+        // 2. On each non-instanced primitive: bake positions in World-space, create World-space AABB
+        // 3. On all primitives: compress normals
+        // 4. Create decode matrices and connect primitives to them
+
         const batchedPrimitives = [];
         const instancedPrimitives = [];
 
-        // Transform positions of each primitive that is not reused (ie. batched)
-        // Calculate AABB for each primitive
-        // Compress normals of all primitives
+        for (let primitiveIndex = 0, numPrimitives = this.primitives.length; primitiveIndex < numPrimitives; primitiveIndex++) {
 
-        for (let i = 0, len = this.primitives.length; i < len; i++) {
-
-            const primitive = this.primitives [i];
-            const batched = (!primitive.instanced);
+            const primitive = this.primitives [primitiveIndex];
 
             primitive.aabb = math.collapseAABB3();
-            const matrix = primitive.matrix;
 
-            if (batched) { // Non reused primitives
-
-                const positions = primitive.positions.slice();
-
-                for (let j = 0, lenj = positions.length; j < lenj; j += 3) {
-
-                    tempVec4a[0] = positions[j];
-                    tempVec4a[1] = positions[j + 1];
-                    tempVec4a[2] = positions[j + 2];
-
-                    math.transformPoint4(matrix, tempVec4a, tempVec4b);
-
-                    math.expandAABB3Point3(primitive.aabb, tempVec4b);
-
-                    positions[j] = tempVec4b[0];
-                    positions[j + 1] = tempVec4b[1];
-                    positions[j + 2] = tempVec4b[2];
-                }
-
-                primitive.positions = positions;
-
-                batchedPrimitives.push(primitive);
-
-            } else { // Instanced primitive
+            if (primitive.instanced) {
 
                 const positions = primitive.positions;
 
@@ -91,6 +67,29 @@ class Model {
                 }
 
                 instancedPrimitives.push(primitive);
+
+            } else { // Batched primitive
+
+                const positions = primitive.positions.slice();
+
+                for (let j = 0, lenj = positions.length; j < lenj; j += 3) {
+
+                    tempVec4a[0] = positions[j];
+                    tempVec4a[1] = positions[j + 1];
+                    tempVec4a[2] = positions[j + 2];
+
+                    math.transformPoint4(primitive.matrix, tempVec4a, tempVec4b);
+
+                    math.expandAABB3Point3(primitive.aabb, tempVec4b);
+
+                    positions[j] = tempVec4b[0];
+                    positions[j + 1] = tempVec4b[1];
+                    positions[j + 2] = tempVec4b[2];
+                }
+
+                primitive.positions = positions;
+
+                batchedPrimitives.push(primitive);
             }
 
             // Compress normals
@@ -108,32 +107,19 @@ class Model {
             primitive.normals = encodedNormals;
         }
 
+        // Create a single decode matrix for all instanced primitives
 
-        // this._startDecodeMat();
-        // for (let i = 0, len = instancedPrimitives.length; i < len; i++) {
-        //     const primitive = instancedPrimitives[i];
-        //     this._addPrimitiveToDecodeMat(primitive)
-        // }
-        // this._finalizeDecodeMat();
+        this._startDecodeMat();
+        for (let i = 0, len = instancedPrimitives.length; i < len; i++) {
+            const primitive = instancedPrimitives[i];
+            this._addPrimitiveToDecodeMat(primitive)
+        }
+        this._finalizeDecodeMat();
 
-        // this._startDecodeMat();
-        // for (let i = 0, len = batchedPrimitives.length; i < len; i++) {
-        //     const primitive = batchedPrimitives[i];
-        //     this._addPrimitiveToDecodeMat(primitive);
-        // }
-        // this._finalizeDecodeMat();
-        //
-        // this._startDecodeMat();
-        // for (let i = 0, len = instancedPrimitives.length; i < len; i++) {
-        //     const primitive = instancedPrimitives[i];
-        //     this._addPrimitiveToDecodeMat(primitive)
-        // }
-        // this._finalizeDecodeMat();
-        //
+        // Create separate decode matrices for sub-regions of batched primitives
 
         this._buildDecodeMatrices(batchedPrimitives);
     }
-
 
     _buildDecodeMatrices(primitives) {
         const kdTree = this._createKDTree(primitives);
