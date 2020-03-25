@@ -33,6 +33,7 @@ function getModelData(model) {
     let countIndices = 0;
     let countEdgeIndices = 0;
     let countPrimitives = primitives.length;
+    let countEntityMatrices = 0;
     let countColors = 0;
 
     for (let primitiveIndex = 0; primitiveIndex < numPrimitives; primitiveIndex++) {
@@ -53,6 +54,10 @@ function getModelData(model) {
         const numEntityPrimitives = entity.primitiveIds.length;
 
         countPrimitiveInstances += numEntityPrimitives;
+
+        if (entity.instancing) {
+            countEntityMatrices++;
+        }
     }
 
     const data = {
@@ -62,6 +67,7 @@ function getModelData(model) {
         indices: new Uint32Array(countIndices), // Indices for all primitives
         edgeIndices: new Uint32Array(countEdgeIndices), // Edge indices for all primitives
         decodeMatrices: new Float32Array(decodeMatrices), // Flat array of 4x4 de-quantize (decode) matrices for all primitives
+        matrices: new Float32Array(countEntityMatrices * 16), // Flat array of 4x4 matrices for instanced primitives
 
         eachPrimitivePositionsAndNormalsPortion: new Uint32Array(countPrimitives), // For each primitive, an index to its first element in data.positions and data.normals
         eachPrimitiveIndicesPortion: new Uint32Array(countPrimitives), // For each primitive, an index to its first element in data.indices
@@ -72,8 +78,8 @@ function getModelData(model) {
         primitiveInstances: new Uint32Array(countPrimitiveInstances), // For each entity, a list of indices into eachPrimitivePositionsAndNormalsPortion, eachPrimitiveIndicesPortion, eachPrimitiveEdgeIndicesPortion, eachPrimitiveDecodeMatricesPortion and eachPrimitiveColor
 
         eachEntityId: [], // For each entity, an ID string
-        eachEntityPrimitiveInstancesPortion: new Uint32Array(entities.length), // For each entity, the index of the the first element of primitiveInstances used by the entity
-        eachEntityMatrix: new Float32Array(entities.length * 16)
+        eachEntityPrimitiveInstancesPortion: new Uint32Array(numEntities), // For each entity, the index of the the first element of primitiveInstances used by the entity
+        eachEntityMatricesPortion: new Uint32Array(numEntities) // For each primitive instance, an index to its first element in data.matrices
     };
 
     countPositions = 0;
@@ -109,9 +115,13 @@ function getModelData(model) {
         countColors += 4;
     }
 
+    console.log("numEntities = " + numEntities);
+    console.log("countEntityMatrices = " + countEntityMatrices);
+
     // Entities
 
     countPrimitiveInstances = 0;
+    countEntityMatrices = 0;
 
     for (let entityIndex = 0; entityIndex < numEntities; entityIndex++) {
 
@@ -120,9 +130,14 @@ function getModelData(model) {
         const numPrimitivesInEntity = entityPrimitiveIds.length;
 
         data.eachEntityId [entityIndex] = entity.id;
-        data.eachEntityMatrix.set(entity.matrix, entityIndex * 16);
 
         data.eachEntityPrimitiveInstancesPortion[entityIndex] = countPrimitiveInstances;
+
+        if (entity.instancing) {
+            data.matrices.set(entity.matrix, countEntityMatrices * 16);
+            data.eachEntityMatricesPortion [entityIndex] = countEntityMatrices;
+            countEntityMatrices++;
+        }
 
         //console.log(entityIndex + ": firstEntityPrimitiveInstanceIndex = " + countPrimitiveInstances);
 
@@ -131,7 +146,6 @@ function getModelData(model) {
         }
 
         // console.log(entityIndex + ": primitives = " + entityPrimitiveIds);
-
     }
 
     return data;
@@ -145,6 +159,7 @@ function deflateData(data) {
         indices: pako.deflate(data.indices.buffer),
         edgeIndices: pako.deflate(data.edgeIndices.buffer),
         decodeMatrices: pako.deflate(data.decodeMatrices.buffer),
+        matrices: pako.deflate(data.matrices.buffer),
 
         eachPrimitivePositionsAndNormalsPortion: pako.deflate(data.eachPrimitivePositionsAndNormalsPortion.buffer),
         eachPrimitiveIndicesPortion: pako.deflate(data.eachPrimitiveIndicesPortion.buffer),
@@ -166,13 +181,17 @@ function deflateData(data) {
         // A shared primitive appears multiple times in primitiveInstances, while a non-shared
         // primitive appears just once.
 
+        // When an entity shares multiple primitives, those multiple primitives are transformed as a unit by the entity's matrix.
+        // Within the glTF, those primitives belong, solely, as a unit, to the mesh that is instanced by the glTF scene
+        // node, which the entity represents. Therefore, a single matrix on the entity suffices to transform them into World-space.
+
         primitiveInstances: pako.deflate(data.primitiveInstances.buffer),
 
         eachEntityId: pako.deflate(JSON.stringify(data.eachEntityId).replace(/[\u007F-\uFFFF]/g, function (chr) { // Produce only ASCII-chars, so that the data can be inflated later
             return "\\u" + ("0000" + chr.charCodeAt(0).toString(16)).substr(-4)
         })),
         eachEntityPrimitiveInstancesPortion: pako.deflate(data.eachEntityPrimitiveInstancesPortion.buffer),
-        eachEntityMatrix: pako.deflate(data.eachEntityMatrix.buffer)
+        eachEntityMatricesPortion: pako.deflate(data.eachEntityMatricesPortion.buffer)
     };
 }
 
@@ -185,6 +204,7 @@ function createArrayBuffer(deflatedData) {
         deflatedData.indices,
         deflatedData.edgeIndices,
         deflatedData.decodeMatrices,
+        deflatedData.matrices,
 
         deflatedData.eachPrimitivePositionsAndNormalsPortion,
         deflatedData.eachPrimitiveIndicesPortion,
@@ -196,7 +216,7 @@ function createArrayBuffer(deflatedData) {
 
         deflatedData.eachEntityId,
         deflatedData.eachEntityPrimitiveInstancesPortion,
-        deflatedData.eachEntityMatrix // TODO: entities with batched primitives don't need matrices, so this is wasteful  - solution: put matrices in array, with identity matrix at 0
+        deflatedData.eachEntityMatricesPortion
     ]);
 }
 

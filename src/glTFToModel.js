@@ -345,26 +345,26 @@ function parseNode(parsingCtx, glTFNode, matrix) {
 
         if (meshInfo) {
 
-            let meshOnlyUsedOnce = (parsingCtx.meshInstanceCounts [meshId] === 1);
+            let meshInstanced = (parsingCtx.meshInstanceCounts [meshId] > 1);
 
             let primitiveMatrix;
             let entityMatrix;
 
-            if (meshOnlyUsedOnce) {
-
-                // glTF meshes do not share primitives - each primitive belongs to one mesh
-                // Primitives in a mesh that's not shared get baked into World-space
-
-                primitiveMatrix = matrix ? matrix.slice() : math.identityMat4();
-                entityMatrix = math.identityMat4();
-
-            } else {
+            if (meshInstanced) {
 
                 // Primitives in a mesh that is shared are left in Model-space
                 // Entities that instance those primitives will use their matrix to transform the primitives into World-space
 
                 primitiveMatrix = math.identityMat4();
                 entityMatrix = matrix ? matrix.slice() : math.identityMat4();
+
+            } else {
+
+                // glTF meshes do not share primitives - each primitive belongs to one mesh
+                // Primitives in a mesh that's not shared get baked into World-space
+
+                primitiveMatrix = matrix ? matrix.slice() : math.identityMat4();
+                entityMatrix = math.identityMat4();
             }
 
             const numPrimitivesInMesh = meshInfo.primitives.length;
@@ -387,7 +387,7 @@ function parseNode(parsingCtx, glTFNode, matrix) {
                             matrix: primitiveMatrix, // Matrix on mesh is used to bake transform for mesh when mesh only used once
                             color: materialInfo ? materialInfo._rgbaColor : new Float32Array([1.0, 1.0, 1.0, 1.0]),
                             opacity: materialInfo ? materialInfo._rgbaColor[3] : 1.0,
-                            instanced: (!meshOnlyUsedOnce)
+                            instanced: meshInstanced
                         };
 
                         parsePrimitiveGeometry(parsingCtx, primitiveInfo, primitiveCfg);
@@ -411,7 +411,8 @@ function parseNode(parsingCtx, glTFNode, matrix) {
                 model.createEntity({
                     id: glTFNode.name || "entity" + parsingCtx.numEntitiesCreated,
                     matrix: entityMatrix,
-                    primitiveIds: primitiveIds
+                    primitiveIds: primitiveIds,
+                    instancing: meshInstanced
                 });
 
                 parsingCtx.numEntitiesCreated++;
