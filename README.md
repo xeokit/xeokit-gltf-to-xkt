@@ -96,9 +96,3 @@ See `.eslint` and `.prettierrc` for code style guide.
 [XKTLoaderPlugin](https://xeokit.github.io/xeokit-sdk/docs/class/src/plugins/XKTLoaderPlugin/XKTLoaderPlugin.js~XKTLoaderPlugin.html) 
 are based on prototypes by [Toni Marti](https://github.com/tmarti) at [uniZite](https://www.unizite.com/login). Find the original discussion around those prototypes [here](https://github.com/xeokit/xeokit-sdk/issues/48#).
 - Thanks to [Adam Eri](https://github.com/eriadam) at [BIMSpot](https://bimspot.io/) for converting ````xeokit-gltf-to-xkt```` to work as a CLI tool.  
-
-## Work Remaining
-
-* [ ] Publish to `npm`.
-* [ ] At present, ````xeokit-gltf-to-xkt```` only works with glTF 2.0 models that
-have base-64 geometry buffers embedded within the glTF JSON.
