@@ -1,14 +1,18 @@
 const math = require('./math');
 const geometryCompression = require('./geometryCompression');
+const fs = require('fs');
+
+const USE_KD_TREE = false; // Set true to partition the model in separately-quantized regions
+const LOG_KD_TREE = false; // Set true to write a JSON file of the k-d tree structure to "./kdtree.json" for debugging
+const KD_TREE_MAX_DEPTH = 4; // Increase if greater precision needed
 
 const tempMat4 = math.mat4();
 const tempMat4b = math.mat4();
 const tempVec4a = math.vec4([0, 0, 0, 1]);
 const tempVec4b = math.vec4([0, 0, 0, 1]);
+const tempAABB3 = new Float32Array(6);
 
-const KD_TREE_MAX_DEPTH = 4;
-
-const kdTreeDimLength = new Float32Array();
+const kdTreeDimLength = new Float32Array(3);
 
 /**
  * Contains the output of {@link glTFToModel}.
@@ -16,17 +20,9 @@ const kdTreeDimLength = new Float32Array();
 class Model {
 
     constructor() {
-
         this.primitives = [];
         this.entities = [];
         this.decodeMatrices = [];
-
-        // Used by _startDecodeMat(), _addPrimitiveToDecodeMat() and _finalizeDecodeMat()
-
-        this._tileAABB = math.AABB3();
-        this._tileDecodeMatrix = math.mat4();
-        this._tilePrimitives = [];
-        this._numTilePrimitives = 0;
     }
 
     createPrimitive(params) {
@@ -37,15 +33,20 @@ class Model {
         this.entities.push(params);
     }
 
+    /**
+     * Finalizes this model, preparing the data for writing to XKT.
+     */
     finalize() {
 
         // 1. On each instanced primitive: create Model-space AABB
-        // 2. On each non-instanced primitive: bake positions in World-space, create World-space AABB
+        // 2. On each non-instanced primitive: bake positions in World-space and create World-space AABB
         // 3. On all primitives: compress normals
         // 4. Create decode matrices and connect primitives to them
 
         const batchedPrimitives = [];
         const instancedPrimitives = [];
+
+        const batchedAABB = math.collapseAABB3(); // This is just used for logging the boundary
 
         for (let primitiveIndex = 0, numPrimitives = this.primitives.length; primitiveIndex < numPrimitives; primitiveIndex++) {
 
@@ -81,6 +82,7 @@ class Model {
                     math.transformPoint4(primitive.matrix, tempVec4a, tempVec4b);
 
                     math.expandAABB3Point3(primitive.aabb, tempVec4b);
+                    math.expandAABB3Point3(batchedAABB, tempVec4b);
 
                     positions[j] = tempVec4b[0];
                     positions[j + 1] = tempVec4b[1];
@@ -94,11 +96,6 @@ class Model {
 
             // Compress normals
 
-            //-------------------------------------------------------
-            // TODO: Normals for non-shared primitives in World space?
-            // Normals for shared primitives in model space?
-            //-------------------------------------------------------
-
             const modelNormalMatrix = (primitive.matrix) ? math.inverseMat4(math.transposeMat4(primitive.matrix, tempMat4b), tempMat4) : math.identityMat4(tempMat4);
             const encodedNormals = new Int8Array(primitive.normals.length);
 
@@ -107,26 +104,42 @@ class Model {
             primitive.normals = encodedNormals;
         }
 
+        // Log boundary and center
+
+        console.log("Model boundary = [xmin: " + batchedAABB[0] + ", ymin = " + batchedAABB[1] + ", zmin: " + batchedAABB[2] + ", xmax: " + batchedAABB[3] + ", ymax: " + batchedAABB[4] + ", zmax: " + batchedAABB[5] + "]");
+        console.log("Model center = [x: " + (batchedAABB[0] + batchedAABB[3]) / 2.0 + ", y: " + (batchedAABB[1] + batchedAABB[4]) / 2.0 + ", z: " + (batchedAABB[2] + batchedAABB[4]) / 2.0 + "]");
+
         // Create a single decode matrix for all instanced primitives
 
-        this._startDecodeMat();
-        for (let i = 0, len = instancedPrimitives.length; i < len; i++) {
-            const primitive = instancedPrimitives[i];
-            this._addPrimitiveToDecodeMat(primitive)
+        this._createDecodeMatrixFromPrimitives(instancedPrimitives);
+
+        // If partitioning enabled, create separate decode matrices for batched primitives partitioned by k-d tree,
+        // otherwise just create a single decode matrix for all batched primitives
+
+        if (USE_KD_TREE) {
+
+            const kdTree = this._createKDTree(batchedPrimitives, KD_TREE_MAX_DEPTH);
+
+            this._createDecodeMatricesFromKDTree(kdTree);
+
+            if (LOG_KD_TREE) {
+                writeKDTreeToFile("./kdtree.json", kdTree)
+            }
+
+        } else {
+            this._createDecodeMatrixFromPrimitives(batchedPrimitives);
         }
-        this._finalizeDecodeMat();
-
-        // Create separate decode matrices for sub-regions of batched primitives
-
-        this._buildDecodeMatrices(batchedPrimitives);
     }
 
-    _buildDecodeMatrices(primitives) {
-        const kdTree = this._createKDTree(primitives);
-        this._createDecodeMatsFromKDTree(kdTree);
-    }
-
-    _createKDTree(primitives) {
+    /**
+     * Builds a k-d tree that spatially organizes the given primitives into partitions.
+     *
+     * @param primitives
+     * @param maxKDTreeDepth
+     * @returns {*}
+     * @private
+     */
+    _createKDTree(primitives, maxKDTreeDepth) {
         const aabb = math.collapseAABB3();
         for (let i = 0, len = primitives.length; i < len; i++) {
             const primitive = primitives[i];
@@ -138,37 +151,47 @@ class Model {
         for (let i = 0, len = primitives.length; i < len; i++) {
             const primitive = primitives[i];
             const depth = 0;
-            this._insertPrimitiveIntoKDTree(root, primitive, depth + 1);
+            this._insertPrimitiveIntoKDTree(root, primitive, depth + 1, maxKDTreeDepth);
         }
         return root;
     }
 
-    _insertPrimitiveIntoKDTree(node, primitive, depth) {
+    /**
+     * Inserts a primitive into a k-d tree.
+     *
+     * @param kdNode
+     * @param primitive
+     * @param depth
+     * @param maxKDTreeDepth
+     * @private
+     */
+    _insertPrimitiveIntoKDTree(kdNode, primitive, depth, maxKDTreeDepth) {
 
         const primitiveAABB = primitive.aabb;
 
-        if (depth >= KD_TREE_MAX_DEPTH) {
-            node.primitives = node.primitives || [];
-            node.primitives.push(primitive);
-            math.expandAABB3(node.aabb, primitiveAABB);
+        if (depth >= maxKDTreeDepth) {
+            kdNode.primitives = kdNode.primitives || [];
+            kdNode.primitives.push(primitive);
+            math.expandAABB3(kdNode.aabb, primitiveAABB);
             return;
         }
 
-        if (node.left) {
-            if (math.containsAABB3(node.left.aabb, primitiveAABB)) {
-                this._insertPrimitiveIntoKDTree(node.left, primitive, depth + 1);
+        if (kdNode.left) {
+            if (math.containsAABB3(kdNode.left.aabb, primitiveAABB)) {
+                this._insertPrimitiveIntoKDTree(kdNode.left, primitive, depth + 1, maxKDTreeDepth);
                 return;
             }
         }
 
-        if (node.right) {
-            if (math.containsAABB3(node.right.aabb, primitiveAABB)) {
-                this._insertPrimitiveIntoKDTree(node.right, primitive, depth + 1);
+        if (kdNode.right) {
+            if (math.containsAABB3(kdNode.right.aabb, primitiveAABB)) {
+                this._insertPrimitiveIntoKDTree(kdNode.right, primitive, depth + 1, maxKDTreeDepth);
                 return;
             }
         }
 
-        const nodeAABB = node.aabb;
+        const nodeAABB = kdNode.aabb;
+
         kdTreeDimLength[0] = nodeAABB[3] - nodeAABB[0];
         kdTreeDimLength[1] = nodeAABB[4] - nodeAABB[1];
         kdTreeDimLength[2] = nodeAABB[5] - nodeAABB[2];
@@ -183,93 +206,124 @@ class Model {
             dim = 2;
         }
 
-        if (!node.left) {
+        if (!kdNode.left) {
             const aabbLeft = nodeAABB.slice();
             aabbLeft[dim + 3] = ((nodeAABB[dim] + nodeAABB[dim + 3]) / 2.0);
-            node.left = {
+            kdNode.left = {
                 aabb: aabbLeft
             };
             if (math.containsAABB3(aabbLeft, primitiveAABB)) {
-                this._insertPrimitiveIntoKDTree(node.left, primitive, depth + 1);
+                this._insertPrimitiveIntoKDTree(kdNode.left, primitive, depth + 1, maxKDTreeDepth);
                 return;
             }
         }
 
-        if (!node.right) {
+        if (!kdNode.right) {
             const aabbRight = nodeAABB.slice();
             aabbRight[dim] = ((nodeAABB[dim] + nodeAABB[dim + 3]) / 2.0);
-            node.right = {
+            kdNode.right = {
                 aabb: aabbRight
             };
             if (math.containsAABB3(aabbRight, primitiveAABB)) {
-                this._insertPrimitiveIntoKDTree(node.right, primitive, depth + 1);
+                this._insertPrimitiveIntoKDTree(kdNode.right, primitive, depth + 1, maxKDTreeDepth);
                 return;
             }
         }
 
-        node.primitives = node.primitives || [];
-        node.primitives.push(primitive);
-        math.expandAABB3(node.aabb, primitiveAABB);
+        kdNode.primitives = kdNode.primitives || [];
+        kdNode.primitives.push(primitive);
+        math.expandAABB3(kdNode.aabb, primitiveAABB);
     }
 
-    _createDecodeMatsFromKDTree(kdNode) {
+    /**
+     * Creates positions decode matrices for the primitives in the given k-d tree.
+     *
+     * @param kdNode
+     * @private
+     */
+    _createDecodeMatricesFromKDTree(kdNode) {
         if (kdNode.primitives && kdNode.primitives.length > 0) {
-            this._startDecodeMat();
-            const primitives = kdNode.primitives;
-            for (let i = 0, len = primitives.length; i < len; i++) {
-                const primitive = primitives[i];
-                this._addPrimitiveToDecodeMat(primitive)
-            }
-            this._finalizeDecodeMat();
+            this._createDecodeMatrixFromPrimitives(kdNode.primitives)
         }
         if (kdNode.left) {
-            this._createDecodeMatsFromKDTree(kdNode.left);
+            this._createDecodeMatricesFromKDTree(kdNode.left);
         }
         if (kdNode.right) {
-            this._createDecodeMatsFromKDTree(kdNode.right);
+            this._createDecodeMatricesFromKDTree(kdNode.right);
         }
     }
 
-    _startDecodeMat() {
-        this._numTilePrimitives = 0;
-    }
-
-    _addPrimitiveToDecodeMat(primitive) {
-        primitive.decodeMatrixIdx = this.decodeMatrices.length;
-        this._tilePrimitives[this._numTilePrimitives++] = primitive;
-    }
-
-    _finalizeDecodeMat() {
-
-        const tileAABB = math.collapseAABB3();
-
-        for (let i = 0; i < this._numTilePrimitives; i++) {
-            const primitive = this._tilePrimitives [i];
+    /**
+     * Creates a positions decode matrix for the given primitives.
+     *
+     * @param primitives
+     * @private
+     */
+    _createDecodeMatrixFromPrimitives(primitives) {
+        math.collapseAABB3(tempAABB3);
+        for (let i = 0; i < primitives.length; i++) {
+            const primitive = primitives [i];
             const positions = primitive.positions;
             for (let j = 0, lenj = positions.length; j < lenj; j += 3) {
                 tempVec4a[0] = positions[j];
                 tempVec4a[1] = positions[j + 1];
                 tempVec4a[2] = positions[j + 2];
-                math.expandAABB3Point3(tileAABB, tempVec4a);
+                math.expandAABB3Point3(tempAABB3, tempVec4a);
             }
         }
-
-        this._tileDecodeMatrix = math.mat4();
-
-        geometryCompression.createPositionsDecodeMatrix(tileAABB, this._tileDecodeMatrix);
-
-        for (let i = 0; i < 16; i++) {
-            this.decodeMatrices.push(this._tileDecodeMatrix[i]);
-        }
-
-        for (let i = 0; i < this._numTilePrimitives; i++) {
-            const primitive = this._tilePrimitives [i];
+        geometryCompression.createPositionsDecodeMatrix(tempAABB3, tempMat4);
+        for (let i = 0; i < primitives.length; i++) {
+            const primitive = primitives [i];
             const quantizedPositions = new Uint16Array(primitive.positions.length);
-            geometryCompression.quantizePositions(primitive.positions, primitive.positions.length, tileAABB, quantizedPositions);
+            geometryCompression.quantizePositions(primitive.positions, primitive.positions.length, tempAABB3, quantizedPositions);
             primitive.positions = quantizedPositions;
+            primitive.decodeMatrixIdx = this.decodeMatrices.length;
         }
-
+        for (let i = 0; i < 16; i++) {
+            this.decodeMatrices.push(tempMat4[i]);
+        }
     }
+}
+
+/**
+ * Writes a k-d tree to a JSON file for debugging.
+ *
+ * @param filePath
+ * @param kdNode
+ * @returns {Promise<any>}
+ */
+function writeKDTreeToFile(filePath, kdNode) {
+    const json = createKDTreeJSON(kdNode);
+    return new Promise((resolve, reject) => {
+        const kdTreeJSON = createKDTreeJSON(kdNode);
+        fs.writeFile(filePath, JSON.stringify(kdTreeJSON), "utf8", (error) => {
+            if (error !== null) {
+                console.error(`Unable to write to file at path: ${kdTreePath}`);
+                reject(error);
+                return;
+            }
+            resolve();
+        });
+    });
+}
+
+/**
+ * Serializes a k-d tree to JSON.
+ *
+ * @param kdNode
+ * @returns {*}
+ */
+function createKDTreeJSON(kdNode) {
+    const json = {
+        aabb: Array.prototype.slice.call(kdNode.aabb)
+    };
+    if (kdNode.left) {
+        json.left = createKDTreeJSON(kdNode.left);
+    }
+    if (kdNode.right) {
+        json.right = createKDTreeJSON(kdNode.right);
+    }
+    return json;
 }
 
 module.exports = Model;

@@ -23,8 +23,7 @@ class Converter {
 
     /**
      * The asynchronous `convert()` method initiates the conversion. First, the
-     * `gltf` is loaded into the memory as a `Model`, then the `modelToXKT`
-     * outputs the `xkt` file at the desitnation.
+     * `gltf` is loaded into the memory as a `Model`, then the `modelToXKT` outputs the `xkt` file at the destination.
      * @returns {Promise<void>} Returns a promise, which is resolved when the
      * operation completes.
      */
@@ -66,7 +65,6 @@ class Converter {
     writeXkt() {
         return new Promise((resolve, reject) => {
             const arrayBuffer = modelToXKT(this.model);
-
             fs.writeFile(this.xktPath, Buffer.from(arrayBuffer), (error) => {
                 if (error !== null) {
                     console.error(`Unable to write to file at path: ${this.xktPath}`);

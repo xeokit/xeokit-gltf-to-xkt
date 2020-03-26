@@ -33,6 +33,7 @@ const WEBGL_TYPE_SIZES = {
  * @returns {Model} Model parsed from the glTF.
  */
 function glTFToModel(gltf, options = {}) {
+
     const model = new Model();
 
     const parsingCtx = {
@@ -396,8 +397,6 @@ function parseNode(parsingCtx, glTFNode, matrix) {
 
                         const primitiveId = parsingCtx.numPrimitivesCreated;
 
-                       // console.log("create primitive: " + primitiveId);
-
                         primitiveIds.push(primitiveId);
 
                         parsingCtx.numPrimitivesCreated++
@@ -405,8 +404,6 @@ function parseNode(parsingCtx, glTFNode, matrix) {
 
                     parsingCtx._meshPrimitiveIds [meshId] = primitiveIds;
                 }
-
-               // console.log("entity " + parsingCtx.numEntitiesCreated + ": primitives = [ " + primitiveIds + " ]");
 
                 model.createEntity({
                     id: glTFNode.name || "entity" + parsingCtx.numEntitiesCreated,
