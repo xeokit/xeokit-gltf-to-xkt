@@ -1,4 +1,4 @@
-# xeokit's gltf2xkt
+# xeokit-gltf-to-xkt
 
 [![npm version](https://badge.fury.io/js/%40xeokit%2Fxeokit-gltf-to-xkt.svg)](https://badge.fury.io/js/%40xeokit%2Fxeokit-gltf-to-xkt)
 
@@ -18,6 +18,7 @@ geometry quantization and zlib.
 See the [XKT Format](https://github.com/xeokit/xeokit-sdk/wiki/XKT-Format) 
 specification for a more detailed description of the ````.xkt```` format.
 
+See [Creating Files for Offline BIM](https://github.com/xeokit/xeokit-sdk/wiki/Creating-Files-for-Offline-BIM) for instructions on converting IFC, DAE and glTF models to ````.xkt````.
 
 Once you have ````.xkt```` files, you can load them into your viewer using 
 [XKTLoaderPlugin](https://xeokit.github.io/xeokit-sdk/docs/class/src/plugins/XKTLoaderPlugin/XKTLoaderPlugin.js~XKTLoaderPlugin.html), 
