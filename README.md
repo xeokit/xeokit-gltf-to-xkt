@@ -14,9 +14,9 @@
 [xeokit](http://xeokit.io)'s optimized ````.xkt```` format.
 
 An ````.xkt```` file is a single BLOB containing a model, compressed using 
-geometry quantization and zlib. 
+geometry coordinate quantization, normal vector oct-encoding and zlib. 
 See the [XKT Format](https://github.com/xeokit/xeokit-sdk/wiki/XKT-Format) 
-specification for a more detailed description of the ````.xkt```` format.
+specification for a detailed description of the ````.xkt```` format.
 
 See [Creating Files for Offline BIM](https://github.com/xeokit/xeokit-sdk/wiki/Creating-Files-for-Offline-BIM) for instructions on converting IFC, DAE and glTF models to ````.xkt````.
 
