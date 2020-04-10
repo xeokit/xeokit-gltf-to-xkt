@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>XKTLoaderPlugin - Loading a Model from the File System</title>
+    <link href="css/styles.css" type="text/css" rel="stylesheet"/>
+
+    <style>
+        #myCanvas {
+            width: 100%;
+            height: 100%;
+            background: lightBlue;
+        }
+    </style>
+
+</head>
+
+<body>
+<canvas id="myCanvas"></canvas>
+<div id="info">
+    <h1>XKT V5</h1><br>
+    <ul>
+        <li>
+            <div id="time">Loading JavaScript modules...</div>
+        </li>
+    </ul>
+</div>
+</body>
+<script type="module">
+
+    import {Viewer} from "./build/main.js";
+    import {XKTLoaderPlugin} from "./build/main.js";
+
+    const viewer = new Viewer({
+        canvasId: "myCanvas",
+        transparent: true
+    });
+
+    const xktLoader = new XKTLoaderPlugin(viewer);
+
+    var t0 = performance.now();
+
+    document.getElementById("time").innerHTML = "Loading model 1 of 7";
+
+    const mechanical = xktLoader.load({
+        id: "mechanical",
+        src: "./models/xkt/v5_WestRiverSideHospital_mechanical.xkt",
+        edges: true
+    });
+
+    mechanical.on("loaded", () => {
+
+        document.getElementById("time").innerHTML = "Loading model 2 of 7";
+
+        const plumbing = xktLoader.load({
+            id: "plumbing",
+            src: "./models/xkt/v5_WestRiverSideHospital_plumbing.xkt",
+            edges: true
+        });
+
+        plumbing.on("loaded", () => {
+
+            document.getElementById("time").innerHTML = "Loading model 3 of 7";
+
+            const electrical = xktLoader.load({
+                id: "electrical",
+                src: "./models/xkt/v5_WestRiverSideHospital_electrical.xkt",
+                edges: true
+            });
+
+            electrical.on("loaded", () => {
+
+                document.getElementById("time").innerHTML = "Loading model 4 of 7";
+
+                const fireAlarms = xktLoader.load({
+                    id: "fireAlarms",
+                    src: "./models/xkt/v5_WestRiverSideHospital_fireAlarms.xkt",
+                    edges: true
+                });
+
+                fireAlarms.on("loaded", () => {
+
+                    document.getElementById("time").innerHTML = "Loading model 5 of 7";
+
+                    const sprinklers = xktLoader.load({
+                        id: "sprinklers",
+                        src: "./models/xkt/v5_WestRiverSideHospital_sprinklers.xkt",
+                        edges: true
+                    });
+
+                    sprinklers.on("loaded", () => {
+
+                        document.getElementById("time").innerHTML = "Loading model 6 of 7";
+
+                        const structure = xktLoader.load({
+                            id: "structure",
+                            src: "./models/xkt/v5_WestRiverSideHospital_structure.xkt",
+                            edges: true
+                        });
+
+                        structure.on("loaded", () => {
+
+                            document.getElementById("time").innerHTML = "Loading model 7 of 7";
+
+                            const architectural = xktLoader.load({
+                                id: "architectural",
+                                src: "./models/xkt/v5_WestRiverSideHospital_architecture.xkt",
+                                edges: true
+                            });
+
+                            architectural.on("loaded", () => {
+
+                                document.getElementById("time").innerHTML = "Loaded model 7 of 7";
+
+                                var numEntities = 0;
+
+                                for (var id in viewer.scene.models) {
+                                    const model = viewer.scene.models[id];
+                                    numEntities += model.numEntities;
+                                }
+
+                                var t1 = performance.now();
+
+                                document.getElementById("time").innerHTML = "Loaded 7 models in " + Math.floor((t1 - t0)) / 1000 + " seconds<br>Objects: " + numEntities;
+
+                                viewer.cameraFlight.flyTo(viewer.scene);
+                            });
+                        });
+                    });
+                });
+            });
+        });
+    });
+
+</script>
+</html>

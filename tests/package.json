@@ -1,0 +1,18 @@
+{
+  "name": "xkt-gltf-to-xkt-tests",
+  "version": "1.0.0",
+  "description": "xeokit examples to test xeokit-gltf-to-xkt",
+  "main": "index.js",
+  "scripts": {
+    "build-tests": "rollup -c",
+    "build-xkt": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Lindsay Kay",
+  "license": "ISC",
+  "dependencies": {
+    "@xeokit/xeokit-sdk": "^0.9.92",
+    "rollup": "^1.32.1",
+    "rollup-plugin-minify-es": "^1.1.1",
+    "rollup-plugin-node-resolve": "^5.2.0"
+  }
+}
