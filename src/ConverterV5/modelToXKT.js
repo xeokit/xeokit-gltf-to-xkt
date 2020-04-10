@@ -1,6 +1,6 @@
 const pako = require('pako');
 
-const XKT_VERSION = 4; // XKT format version
+const XKT_VERSION = 5; // XKT format version
 
 /**
  * Serializes a {@link Model} to an {@link ArrayBuffer}.
@@ -9,19 +9,14 @@ const XKT_VERSION = 4; // XKT format version
  * @returns {ArrayBuffer} The ArrayBuffer.
  */
 function modelToXKT(model) {
-
     const data = getModelData(model);
     const deflatedData = deflateData(data);
     const arrayBuffer = createArrayBuffer(deflatedData);
-
     return arrayBuffer;
 }
 
 function getModelData(model) {
 
-    console.log("Number of decode matrices: " + (model.decodeMatrices.length / 16));
-
-    const decodeMatrices = model.decodeMatrices;
     const entities = model.entities;
     const primitives = model.primitives;
 
@@ -37,9 +32,7 @@ function getModelData(model) {
     let countColors = 0;
 
     for (let primitiveIndex = 0; primitiveIndex < numPrimitives; primitiveIndex++) {
-
         const primitive = primitives [primitiveIndex];
-
         countPositions += primitive.positions.length;
         countNormals += primitive.normals.length;
         countIndices += primitive.indices.length;
@@ -49,12 +42,9 @@ function getModelData(model) {
     let countPrimitiveInstances = 0;
 
     for (let entityIndex = 0; entityIndex < numEntities; entityIndex++) {
-
         const entity = entities[entityIndex];
         const numEntityPrimitives = entity.primitiveIds.length;
-
         countPrimitiveInstances += numEntityPrimitives;
-
         if (entity.instancing) {
             countEntityMatrices++;
         }
@@ -62,17 +52,16 @@ function getModelData(model) {
 
     const data = {
 
-        positions: new Uint16Array(countPositions), // Flat array of quantized World-space positions for all primitives
+        positions: new Float32Array(countPositions), // Flat array of World-space positions for all primitives
         normals: new Int8Array(countNormals), // Flat array of oct-encoded normals for all primitives
         indices: new Uint32Array(countIndices), // Indices for all primitives
         edgeIndices: new Uint32Array(countEdgeIndices), // Edge indices for all primitives
-        decodeMatrices: new Float32Array(decodeMatrices), // Flat array of 4x4 de-quantize (decode) matrices for all primitives
+
         matrices: new Float32Array(countEntityMatrices * 16), // Flat array of 4x4 matrices for instanced primitives
 
         eachPrimitivePositionsAndNormalsPortion: new Uint32Array(countPrimitives), // For each primitive, an index to its first element in data.positions and data.normals
         eachPrimitiveIndicesPortion: new Uint32Array(countPrimitives), // For each primitive, an index to its first element in data.indices
         eachPrimitiveEdgeIndicesPortion: new Uint32Array(countPrimitives), // For each primitive, an index to its first element in data.edgeIndices
-        eachPrimitiveDecodeMatricesPortion: new Uint32Array(countPrimitives), // For each primitive, an index to its first element in data.decodeMatrices
         eachPrimitiveColor: new Uint8Array(countPrimitives * 4), // For each primitive, an RGBA color [0..255,0..255,0..255,0..255]
 
         primitiveInstances: new Uint32Array(countPrimitiveInstances), // For each entity, a list of indices into eachPrimitivePositionsAndNormalsPortion, eachPrimitiveIndicesPortion, eachPrimitiveEdgeIndicesPortion, eachPrimitiveDecodeMatricesPortion and eachPrimitiveColor
@@ -102,7 +91,6 @@ function getModelData(model) {
         data.eachPrimitivePositionsAndNormalsPortion [primitiveIndex] = countPositions;
         data.eachPrimitiveIndicesPortion [primitiveIndex] = countIndices;
         data.eachPrimitiveEdgeIndicesPortion [primitiveIndex] = countEdgeIndices;
-        data.eachPrimitiveDecodeMatricesPortion[primitiveIndex] = primitive.decodeMatrixIdx;
         data.eachPrimitiveColor[countColors + 0] = Math.floor(primitive.color[0] * 255);
         data.eachPrimitiveColor[countColors + 1] = Math.floor(primitive.color[1] * 255);
         data.eachPrimitiveColor[countColors + 2] = Math.floor(primitive.color[2] * 255);
@@ -114,9 +102,6 @@ function getModelData(model) {
         countEdgeIndices += primitive.edgeIndices.length;
         countColors += 4;
     }
-
-    console.log("numEntities = " + numEntities);
-    console.log("countEntityMatrices = " + countEntityMatrices);
 
     // Entities
 
@@ -139,13 +124,9 @@ function getModelData(model) {
             countEntityMatrices++;
         }
 
-        //console.log(entityIndex + ": firstEntityPrimitiveInstanceIndex = " + countPrimitiveInstances);
-
         for (let j = 0; j < numPrimitivesInEntity; j++) {
             data.primitiveInstances [countPrimitiveInstances++] = entityPrimitiveIds [j];
         }
-
-        // console.log(entityIndex + ": primitives = " + entityPrimitiveIds);
     }
 
     return data;
@@ -158,13 +139,12 @@ function deflateData(data) {
         normals: pako.deflate(data.normals.buffer),
         indices: pako.deflate(data.indices.buffer),
         edgeIndices: pako.deflate(data.edgeIndices.buffer),
-        decodeMatrices: pako.deflate(data.decodeMatrices.buffer),
+
         matrices: pako.deflate(data.matrices.buffer),
 
         eachPrimitivePositionsAndNormalsPortion: pako.deflate(data.eachPrimitivePositionsAndNormalsPortion.buffer),
         eachPrimitiveIndicesPortion: pako.deflate(data.eachPrimitiveIndicesPortion.buffer),
         eachPrimitiveEdgeIndicesPortion: pako.deflate(data.eachPrimitiveEdgeIndicesPortion.buffer),
-        eachPrimitiveDecodeMatricesPortion: pako.deflate(data.eachPrimitiveDecodeMatricesPortion.buffer),
         eachPrimitiveColor: pako.deflate(data.eachPrimitiveColor.buffer),
 
         // Each entity has a portion of primitiveInstances.
@@ -203,13 +183,12 @@ function createArrayBuffer(deflatedData) {
         deflatedData.normals,
         deflatedData.indices,
         deflatedData.edgeIndices,
-        deflatedData.decodeMatrices,
+
         deflatedData.matrices,
 
         deflatedData.eachPrimitivePositionsAndNormalsPortion,
         deflatedData.eachPrimitiveIndicesPortion,
         deflatedData.eachPrimitiveEdgeIndicesPortion,
-        deflatedData.eachPrimitiveDecodeMatricesPortion,
         deflatedData.eachPrimitiveColor,
 
         deflatedData.primitiveInstances,
@@ -240,7 +219,7 @@ function toArrayBuffer(elements) {
         dataArray.set(element, offset);
         offset += element.length;
     }
-    console.log("arrayBuffer takes " + (dataArray.length / 1024).toFixed(3) + " kB");
+    console.log("Array buffer size: " + (dataArray.length / 1024).toFixed(3) + " kB");
     return dataArray.buffer;
 }
 

@@ -1,9 +1,11 @@
 const fs = require('fs');
-const math = require('./math');
-const utils = require('./utils');
-const buildEdgeIndices = require('./buildEdgeIndices');
-const Model = require('./Model');
 const atob = require('atob');
+
+const math = require('../lib/math');
+const utils = require('../lib/utils');
+const buildEdgeIndices = require('../lib/buildEdgeIndices');
+
+const Model = require('./Model');
 
 const WEBGL_COMPONENT_TYPES = {
     5120: Int8Array,

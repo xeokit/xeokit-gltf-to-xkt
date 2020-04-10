@@ -1,10 +1,11 @@
-const math = require('./math');
-const geometryCompression = require('./geometryCompression');
 const fs = require('fs');
 
-const USE_KD_TREE = false; // Set true to partition the model in separately-quantized regions
+const math = require('../lib/math');
+const geometryCompression = require('../lib/geometryCompression');
+
+const USE_KD_TREE = true; // Set true to partition the model in separately-quantized regions
 const LOG_KD_TREE = false; // Set true to write a JSON file of the k-d tree structure to "./kdtree.json" for debugging
-const KD_TREE_MAX_DEPTH = 4; // Increase if greater precision needed
+const KD_TREE_MAX_DEPTH = 5; // Increase if greater precision needed
 
 const tempMat4 = math.mat4();
 const tempMat4b = math.mat4();
@@ -33,9 +34,6 @@ class Model {
         this.entities.push(params);
     }
 
-    /**
-     * Finalizes this model, preparing the data for writing to XKT.
-     */
     finalize() {
 
         // 1. On each instanced primitive: create Model-space AABB
@@ -106,17 +104,18 @@ class Model {
 
         // Log boundary and center
 
-        console.log("Model boundary = [xmin: " + batchedAABB[0] + ", ymin = " + batchedAABB[1] + ", zmin: " + batchedAABB[2] + ", xmax: " + batchedAABB[3] + ", ymax: " + batchedAABB[4] + ", zmax: " + batchedAABB[5] + "]");
-        console.log("Model center = [x: " + (batchedAABB[0] + batchedAABB[3]) / 2.0 + ", y: " + (batchedAABB[1] + batchedAABB[4]) / 2.0 + ", z: " + (batchedAABB[2] + batchedAABB[4]) / 2.0 + "]");
+        console.log("[XKT 4] Model AABB = [" + batchedAABB[0] + ", " + batchedAABB[1] + ", " + batchedAABB[2] + ", " + batchedAABB[3] + ", " + batchedAABB[4] + ", " + batchedAABB[5] + "]");
+        console.log("[XKT 4] Model center = [" + (batchedAABB[0] + batchedAABB[3]) / 2.0 + ", " + (batchedAABB[1] + batchedAABB[4]) / 2.0 + ", " + (batchedAABB[2] + batchedAABB[4]) / 2.0 + "]");
 
         // Create a single decode matrix for all instanced primitives
 
         this._createDecodeMatrixFromPrimitives(instancedPrimitives);
 
-        // If partitioning enabled, create separate decode matrices for batched primitives partitioned by k-d tree,
-        // otherwise just create a single decode matrix for all batched primitives
+        // Create separate decode matrices for batched primitives partitioned by k-d tree
 
         if (USE_KD_TREE) {
+
+            console.log("[XKT 4]: kd-tree max depth = " + KD_TREE_MAX_DEPTH);
 
             const kdTree = this._createKDTree(batchedPrimitives, KD_TREE_MAX_DEPTH);
 
@@ -127,6 +126,7 @@ class Model {
             }
 
         } else {
+
             this._createDecodeMatrixFromPrimitives(batchedPrimitives);
         }
     }
