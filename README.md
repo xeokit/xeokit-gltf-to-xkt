@@ -46,10 +46,17 @@ $ gltf2xkt --help
 Usage: gltf2xkt [options]
 
 Options:
-  -v, --version        output the version number
-  -s, --source [file]  The path to the source gltf file.
-  -o, --output [file]  The path to the target xkt file.
-  -h, --help           output usage information
+  -v, --version          output the version number
+  -s, --source [file]    path to the source glTF file
+  -o, --output [file]    path to the target xkt file
+  -f  --format [number]  XKT format to write
+  -h, --help             output usage information
+
+Supported XKT Formats:
+  1 - Oct-encoded normals; Quantized positions; No geometry reuse; DEPRECATED
+  3 - Geometry reuse; Oct-encoded normals; Quantized positions; RECOMMENDED
+  4 - Geometry reuse; Oct-encoded normals; Quantized positions; Positions quantized in partitions; EXPERIMENTAL
+  5 - Geometry reuse; Oct-encoded normals; 32-bit floating-point positions; EXPERIMENTAL
 ```
 
 ### Programmatically
@@ -70,7 +77,7 @@ gltf2xkt
     console.error('Something went wrong:', error);
   });
 ```
-
+ 
 ## Development
 
 ```
