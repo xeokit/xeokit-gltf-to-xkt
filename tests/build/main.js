@@ -28152,6 +28152,9 @@ class BatchingLayer {
     /**
      * @param model
      * @param cfg
+     * @param cfg.positionsDecodeMatrix
+     * @param cfg.positionsCompression - "precompressed" \ "disabled" | "auto".
+     * @param cfg.normalsCompression - "precompressed" | "auto".
      * @param cfg.buffer
      * @param cfg.scratchMemory
      * @param cfg.primitive
@@ -28202,7 +28205,7 @@ class BatchingLayer {
             flags2Buf: null,
             indicesBuf: null,
             edgeIndicesBuf: null,
-            positionsDecodeMatrix: math.mat4()
+            positionsDecodeMatrix: math.identityMat4()
         });
 
         // These counts are used to avoid unnecessary render passes
@@ -28221,8 +28224,20 @@ class BatchingLayer {
         this._portions = [];
 
         this._finalized = false;
-        this._positionsDecodeMatrix = cfg.positionsDecodeMatrix;
-        this._preCompressed = (!!this._positionsDecodeMatrix);
+        this._positionsDecodeMatrix = (cfg.positionsDecodeMatrix || math.identityMat4());
+
+        this._positionsCompression = cfg.positionsCompression;
+        this._normalsCompression = cfg.normalsCompression;
+
+        if (this._positionsCompression !== "precompressed" && this._positionsCompression !== "disabled" && this._positionsCompression !== "auto") {
+            model.error("Unsupported value for 'positionsCompression' - supported values are 'precompressed', 'disabled' and 'auto' - defaulting to 'auto'");
+            this._positionsCompression = "auto";
+        }
+
+        if (this._normalsCompression !== "precompressed" && this._normalsCompression !== "auto") {
+            model.error("Unsupported value for 'normalsCompression' - supported values are 'precompressed' and 'auto' - defaulting to 'auto'");
+            this._normalsCompression = "auto";
+        }
     }
 
     /**
@@ -28269,7 +28284,7 @@ class BatchingLayer {
         const numVerts = positions.length / 3;
         const lenPositions = positions.length;
 
-        if (this._preCompressed) {
+        if (this._positionsCompression === "precompressed") {
 
             buffer.positions.set(positions, buffer.lenPositions);
             buffer.lenPositions += lenPositions;
@@ -28292,7 +28307,7 @@ class BatchingLayer {
                 math.OBB3ToAABB3(tempOBB3, worldAABB);
             }
 
-        } else {
+        } else { // "disabled" or "auto"
 
             buffer.positions.set(positions, buffer.lenPositions);
 
@@ -28344,7 +28359,7 @@ class BatchingLayer {
 
         if (normals) {
 
-            if (this._preCompressed) {
+            if (this._normalsCompression === "precompressed") {
 
                 buffer.normals.set(normals, buffer.lenNormals);
                 buffer.lenNormals += normals.length;
@@ -28478,10 +28493,19 @@ class BatchingLayer {
         const gl = this.model.scene.canvas.gl;
         const buffer = this._buffer;
 
-        if (this._preCompressed) {
+        if (this._positionsCompression === "disabled") {
+
+            if (buffer.lenPositions > 0) {
+                state.positionsBuf = new ArrayBuf(gl, gl.ARRAY_BUFFER, buffer.positions.slice(0, buffer.lenPositions), buffer.lenPositions, 3, gl.STATIC_DRAW);
+            }
+
+        } else if (this._positionsCompression === "precompressed") {
+
             state.positionsDecodeMatrix = this._positionsDecodeMatrix;
             state.positionsBuf = new ArrayBuf(gl, gl.ARRAY_BUFFER, buffer.positions.slice(0, buffer.lenPositions), buffer.lenPositions, 3, gl.STATIC_DRAW);
-        } else {
+
+        } else { // this._positionsCompression === "auto"
+
             quantizePositions(buffer.positions, buffer.lenPositions, this._modelAABB, buffer.quantizedPositions, state.positionsDecodeMatrix); // BOTTLENECK
 
             if (buffer.lenPositions > 0) {
@@ -29121,6 +29145,14 @@ function buildVertex$9(scene) {
     const src = [];
 
     src.push("// Instancing geometry drawing vertex shader");
+
+    src.push("#ifdef GL_FRAGMENT_PRECISION_HIGH");
+    src.push("precision highp float;");
+    src.push("precision highp int;");
+    src.push("#else");
+    src.push("precision mediump float;");
+    src.push("precision mediump int;");
+    src.push("#endif");
 
     src.push("uniform int renderPass;");
 
@@ -31930,6 +31962,9 @@ class InstancingLayer {
     /**
      * @param model
      * @param cfg
+     * @param cfg.positionsDecodeMatrix
+     * @param cfg.positionsCompression - "precompressed" \ "disabled" | "auto".
+     * @param cfg.normalsCompression - "precompressed" | "auto".
      * @param cfg.primitive
      * @param cfg.positions Flat float Local-space positions array.
      * @param cfg.normals Flat float normals array.
@@ -31978,11 +32013,32 @@ class InstancingLayer {
             obb: math.OBB3()
         };
 
-        const preCompressed = (!!cfg.positionsDecodeMatrix);
+        let positionsCompression = cfg.positionsCompression;
+        let normalsCompression = cfg.normalsCompression;
+
+        if (positionsCompression !== "precompressed" && positionsCompression !== "disabled" && positionsCompression !== "auto") {
+            model.error("Unsupported value for 'positionsCompression' - supported values are 'precompressed', 'disabled' and 'auto' - defaulting to 'auto'");
+            positionsCompression = "auto";
+        }
+
+        if (normalsCompression !== "precompressed" && normalsCompression !== "auto") {
+            model.error("Unsupported value for 'normalsCompression' - supported values are 'precompressed' and 'auto' - defaulting to 'auto'");
+            normalsCompression = "auto";
+        }
 
         if (cfg.positions) {
 
-            if (preCompressed) {
+            if (positionsCompression === "disabled") {
+
+                let lenPositions = cfg.positions.length;
+                let localAABB = math.collapseAABB3();
+                math.expandAABB3Points3(localAABB, cfg.positions);
+                math.AABB3ToOBB3(localAABB, stateCfg.obb);
+                let normalized = false;
+                stateCfg.positionsBuf = new ArrayBuf(gl, gl.ARRAY_BUFFER, cfg.positions, lenPositions, 3, gl.STATIC_DRAW, normalized);
+                math.identityMat4(stateCfg.positionsDecodeMatrix); // Null decode matrix, does nothing in shaders
+
+            } else if (positionsCompression === "precompressed") {
 
                 let normalized = false;
                 stateCfg.positionsBuf = new ArrayBuf(gl, gl.ARRAY_BUFFER, cfg.positions, cfg.positions.length, 3, gl.STATIC_DRAW, normalized);
@@ -31993,7 +32049,7 @@ class InstancingLayer {
                 geometryCompressionUtils.decompressAABB(localAABB, stateCfg.positionsDecodeMatrix);
                 math.AABB3ToOBB3(localAABB, stateCfg.obb);
 
-            } else {
+            } else { // "auto"
 
                 let lenPositions = cfg.positions.length;
                 let localAABB = math.collapseAABB3();
@@ -32006,7 +32062,7 @@ class InstancingLayer {
         }
         if (cfg.normals) {
 
-            if (preCompressed) {
+            if (normalsCompression === "precompressed") {
 
                 let normalized = true; // For oct-encoded UInt8
                 stateCfg.normalsBuf = new ArrayBuf(gl, gl.ARRAY_BUFFER, cfg.normals, cfg.normals.length, 3, gl.STATIC_DRAW, normalized);
@@ -32890,6 +32946,8 @@ class PerformanceModel extends Component {
      * @param {*} [cfg] Configs
      * @param {String} [cfg.id] Optional ID, unique among all components in the parent scene, generated automatically when omitted.
      * @param {Boolean} [cfg.isModel] Specify ````true```` if this PerformanceModel represents a model, in which case the PerformanceModel will be registered by {@link PerformanceModel#id} in {@link Scene#models} and may also have a corresponding {@link MetaModel} with matching {@link MetaModel#id}, registered by that ID in {@link MetaScene#metaModels}.
+     * @param {String} [cfg.positionsCompression="auto"] Positions compression mode; see {@link PerformanceModel#positionsCompression}.
+     * @param {String} [cfg.normalsCompression="auto"] Normals compression mode; ; see {@link PerformanceModel#normalsCompression}.
      * @param {Number[]} [cfg.position=[0,0,0]] Local 3D position.
      * @param {Number[]} [cfg.scale=[1,1,1]] Local scale.
      * @param {Number[]} [cfg.rotation=[0,0,0]] Local rotation, as Euler angles given in degrees, for each of the X, Y and Z axis.
@@ -32910,6 +32968,19 @@ class PerformanceModel extends Component {
     constructor(owner, cfg = {}) {
 
         super(owner, cfg);
+
+        this._positionsCompression = cfg.positionsCompression || "auto";
+        this._normalsCompression = cfg.normalsCompression || "auto";
+
+        if (this._positionsCompression !== "precompressed" && this._positionsCompression !== "disabled" && this._positionsCompression !== "auto") {
+            this.error("Unsupported value for 'positionsCompression' - supported values are 'precompressed', 'disabled' and 'auto' - defaulting to 'auto'");
+            this._positionsCompression = 'auto;';
+        }
+
+        if (this._normalsCompression !== "precompressed" && this._normalsCompression !== "auto") {
+            this.error("Unsupported value for 'normalsCompression' - supported values are 'precompressed' and 'auto' - defaulting to 'auto'");
+            this._normalsCompression = 'auto;';
+        }
 
         this._aabb = math.collapseAABB3();
         this._layerList = []; // For GL state efficiency when drawing, InstancingLayers are in first part, BatchingLayers are in second
@@ -33024,6 +33095,74 @@ class PerformanceModel extends Component {
         this._onCameraViewMatrix = this.scene.camera.on("matrix", () => {
             this._viewMatrixDirty = true;
         });
+    }
+
+    /**
+     * Sets the positions compression mode.
+     *
+     * This configures how the {@link PerformanceModel#createGeometry} and {@link PerformanceModel#createMesh} methods
+     * treat their ````positions```` arguments.
+     *
+     * Accepted values are:
+     *
+     * * "auto" - causes the methods to expect ````positions```` to be uncompressed floats, and then compress them internally.
+     * * "precompressed" - causes the methods to expect ````positions```` to be pre-compressed (quantized) as 16-bit integers and accompanied by a ````positionsDecodeMatrix````.
+     * * "disabled" - causes the methods to expect the ````positions```` to be uncompressed floats, and never compress them.
+     *
+     * @type {String}
+     */
+    set positionsCompression(positionsCompression) {
+        if (this._positionsCompression === positionsCompression) {
+            return;
+        }
+        this._finishBatchingLayer();
+        this._positionsCompression = positionsCompression;
+    }
+
+    /**
+     * Gets the positions compression mode.
+     *
+     * @type {String}
+     */
+    get positionsCompression() {
+        return this._positionsCompression;
+    }
+
+    /**
+     * Sets the normals compression mode.
+     *
+     * This configures how the {@link PerformanceModel#createGeometry} and {@link PerformanceModel#createMesh} methods
+     * treat their ````normals```` arguments.
+     *
+     * Accepted values are:
+     *
+     * * "auto" - causes the methods to expect ````normals```` to be uncompressed floats, and then compress them internally.
+     * * "precompressed" - causes the methods to expect ````normals```` to be pre-compressed (oct-encoded) as 8-bit integers.
+     *
+     * @type {String}
+     */
+    set normalsCompression(normalsCompression) {
+        if (this._normalsCompression === normalsCompression) {
+            return;
+        }
+        this._finishBatchingLayer();
+        this._normalsCompression = normalsCompression;
+    }
+
+    /**
+     * Gets the normals compression mode.
+     *
+     * @type {String}
+     */
+    get normalsCompression() {
+        return this._normalsCompression;
+    }
+
+    _finishBatchingLayer() {
+        if (this._currentBatchingLayer) {
+            this._currentBatchingLayer.finalize();
+            this._currentBatchingLayer = null;
+        }
     }
 
     //------------------------------------------------------------------------------------------------------------------
@@ -33168,20 +33307,37 @@ class PerformanceModel extends Component {
      *
      * We can then supply the geometry ID to {@link PerformanceModel#createMesh} when we want to create meshes that instance the geometry.
      *
-     * If provide a  ````positionsDecodeMatrix```` , then ````createGeometry()```` will assume
-     * that the ````positions```` and ````normals```` arrays are compressed. When compressed, ````positions```` will be
-     * quantized and in World-space, and ````normals```` will be oct-encoded and in World-space.
+     * Note that this method requires ````positions````, ````normals```` and ````indices```` arrays together - all are mandatory.
+
+     * ## Positions compression
      *
-     * Note that ````positions````, ````normals```` and ````indices```` are all required together.
+     * The value of {@link PerformanceModel#positionsCompression} determines how this method treats ````positions```` with respect to compression:
+     *
+     * * ````"precompressed"```` causes this method to expect ````positions```` to be pre-compressed (quantized) 16-bit integers and accompanied by ````positionsDecodeMatrix````.
+     * *  ````"auto"```` causes this method to expect ````positions```` to be uncompressed floats, then automatically compress them, while ignoring ````positionsDecodeMatrix```` if provided.
+     * *  ````"disabled"```` - causes this method to expect ````positions```` to be uncompressed floats, and to not compress them, while ignoring ````positionsDecodeMatrix```` if provided.
+     *
+     * ## Normals compression
+     *
+     * The value of {@link PerformanceModel#normalsCompression} determines how this method treats ````normals```` with respect to compression:
+     *
+     * * ````"precompressed"```` causes this method to expect ````normals```` to be pre-compressed (oct-encoded) 8-bit integers.
+     * *  ````"auto"```` causes this method to expect ````normals```` to be uncompressed floats, then automatically compress (oct-encode) them.
      *
      * @param {*} cfg Geometry properties.
      * @param {String|Number} cfg.id Mandatory ID for the geometry, to refer to with {@link PerformanceModel#createMesh}.
-     * @param {String} [cfg.primitive="triangles"] The primitive type. Accepted values are 'points', 'lines', 'line-loop', 'line-strip', 'triangles', 'triangle-strip' and 'triangle-fan'.
-     * @param {Number[]} cfg.positions Flat array of positions.
-     * @param {Number[]} cfg.normals Flat array of normal vectors.
+     * @param {String} [cfg.primitive="triangles"] The primitive type. Accepted values are 'points', 'lines', 'line-loop',
+     * 'line-strip', 'triangles', 'triangle-strip' and 'triangle-fan'.
+     * @param {Number[]} cfg.positions Flat array of positions. When ````PerformanceModel```` is constructed with
+     * ````positionsCompression```` set to ````"precompressed"````, these should be pre-compressed (quantized) as 16-bit integers
+     * and accompanied by ````positionsDecodeMatrix````.
+     * @param {Number[]} cfg.normals Flat array of normal vectors. When ````PerformanceModel```` is constructed with
+     * ````normalsCompression```` set to ````"precompressed"````, these should be pre-compressed (oct-encodes) as
+     * 8-bit integers.
      * @param {Number[]} cfg.indices Array of triangle indices.
      * @param {Number[]} cfg.edgeIndices Array of edge line indices.
-     * @param {Number[]} [cfg.positionsDecodeMatrix] A 4x4 matrix for decompressing ````positions````.
+     * @param {Number[]} [cfg.positionsDecodeMatrix] A 4x4 matrix for decompressing ````positions````. This is expected
+     * when {@link PerformanceModel#positionsCompression} is ````"precompressed"````.
      */
     createGeometry(cfg) {
         if (!instancedArraysSupported) {
@@ -33197,6 +33353,10 @@ class PerformanceModel extends Component {
             this.error("Geometry already created: " + geometryId);
             return;
         }
+
+        cfg.positionsCompression = this._positionsCompression;
+        cfg.normalsCompression = this._normalsCompression;
+
         const instancingLayer = new InstancingLayer(this, cfg);
         this._instancingLayers[geometryId] = instancingLayer;
         this._layerList.push(instancingLayer);
@@ -33212,34 +33372,46 @@ class PerformanceModel extends Component {
      * To share a geometry with other meshes, provide the ID of a geometry created earlier
      * with {@link PerformanceModel#createGeometry}.
      *
-     * To create unique geometry for the mesh, provide geometry data arrays.
+     * To create unique geometry for the mesh, provide geometry data arrays. Note that ````positions````,
+     * ````normals```` and ````indices```` arrays are all required together.
      *
-     * Internally, PerformanceModel will batch all unique mesh geometries into the same arrays, which improves
-     * rendering performance.
+     * ## Positions compression
      *
-     * If you accompany the arrays with a  ````positionsDecodeMatrix```` , then ````createMesh()```` will assume
-     * that the ````positions```` and ````normals```` arrays are compressed. When compressed, ````positions```` will be
-     * quantized and in World-space, and ````normals```` will be oct-encoded and in World-space.
+     * The value of {@link PerformanceModel#positionsCompression} determines how this method treats ````positions```` with respect to compression:
      *
-     * When creating compressed batches, ````createMesh()```` will start a new batch each time ````positionsDecodeMatrix````
-     * changes. Therefore, to combine arrays into the minimum number of batches, it's best for performance to create
-     * your shared meshes in runs that have the value for ````positionsDecodeMatrix````.
+     * * ````"precompressed"```` causes this method to expect ````positions```` to be pre-compressed (quantized) 16-bit integers and accompanied by ````positionsDecodeMatrix````.
+     * *  ````"auto"```` causes this method to expect ````positions```` to be uncompressed floats, then automatically compress them, while ignoring ````positionsDecodeMatrix```` if provided.
+     * *  ````"disabled"```` - causes this method to expect ````positions```` to be uncompressed floats, and to not compress them, while ignoring ````positionsDecodeMatrix```` if provided.
      *
-     * Note that ````positions````, ````normals```` and ````indices```` are all required together.
+     * ## Normals compression
+     *
+     * The value of {@link PerformanceModel#normalsCompression} determines how this method treats ````normals```` with respect to compression:
+     *
+     * * ````"precompressed"```` causes this method to expect ````normals```` to be pre-compressed (oct-encoded) 8-bit integers.
+     * *  ````"auto"```` causes this method to expect ````normals```` to be uncompressed floats, then automatically compress (oct-encode) them.
      *
      * @param {object} cfg Object properties.
      * @param {String} cfg.id Mandatory ID for the new mesh. Must not clash with any existing components within the {@link Scene}.
-     * @param {String|Number} [cfg.geometryId] ID of a geometry to instance, previously created with {@link PerformanceModel#createGeometry:method"}}createMesh(){{/crossLink}}. Overrides all other geometry parameters given to this method.
-     * @param {String} [cfg.primitive="triangles"]  Geometry primitive type. Ignored when ````geometryId```` is given. Accepted values are 'points', 'lines', 'line-loop', 'line-strip', 'triangles', 'triangle-strip' and 'triangle-fan'.
+     * @param {String|Number} [cfg.geometryId] ID of a geometry to instance, previously created with
+     * {@link PerformanceModel#createGeometry:method"}}createMesh(){{/crossLink}}. Overrides all other geometry
+     * arrays given to this method.
+     * @param {String} [cfg.primitive="triangles"]  Geometry primitive type. Ignored when ````geometryId```` is given.
+     * Accepted values are 'points', 'lines', 'line-loop', 'line-strip', 'triangles', 'triangle-strip' and 'triangle-fan'.
      * @param {Number[]} [cfg.positions] Flat array of geometry positions. Ignored when ````geometryId```` is given.
-     * @param {Number[]} [cfg.normals] Flat array of normal vectors. Ignored when ````geometryId```` is given.
-     * @param {Number[]} [cfg.positionsDecodeMatrix] A 4x4 matrix for decompressing ````positions````.
+     * When ````PerformanceModel```` is constructed with ````positionsCompression```` set to ````"precompressed"````,
+     * these should be pre-compressed (quantized) as 16-bit integers and accompanied by ````positionsDecodeMatrix````.
+     * @param {Number[]} [cfg.normals] Flat array of normal vectors. Ignored when ````geometryId```` is given. When
+     * ````PerformanceModel```` is constructed with ````normalsCompression```` set to ````"precompressed"````, these
+     * should be pre-compressed (oct-encodes) as 8-bit integers.
+     * @param {Number[]} [cfg.positionsDecodeMatrix] A 4x4 matrix for decompressing ````positions````. This is expected when {@link PerformanceModel#positionsCompression} is ````"precompressed"````.
      * @param {Number[]} [cfg.indices] Array of triangle indices. Ignored when ````geometryId```` is given.
      * @param {Number[]} [cfg.edgeIndices] Array of edge line indices. Ignored when ````geometryId```` is given.
      * @param {Number[]} [cfg.position=[0,0,0]] Local 3D position. of the mesh
      * @param {Number[]} [cfg.scale=[1,1,1]] Scale of the mesh.
-     * @param {Number[]} [cfg.rotation=[0,0,0]] Rotation of the mesh as Euler angles given in degrees, for each of the X, Y and Z axis.
-     * @param {Number[]} [cfg.matrix=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]] Mesh modelling transform matrix. Overrides the ````position````, ````scale```` and ````rotation```` parameters.
+     * @param {Number[]} [cfg.rotation=[0,0,0]] Rotation of the mesh as Euler angles given in degrees, for each of the
+     * X, Y and Z axis.
+     * @param {Number[]} [cfg.matrix=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]] Mesh modelling transform matrix. Overrides the
+     * ````position````, ````scale```` and ````rotation```` parameters.
      * @param {Number[]} [cfg.color=[1,1,1]] RGB color in range ````[0..1, 0..`, 0..1]````.
      * @param {Number} [cfg.opacity=1] Opacity in range ````[0..1]````.
      */
@@ -33348,16 +33520,22 @@ class PerformanceModel extends Component {
                 return null;
             }
 
-            if (cfg.positionsDecodeMatrix) {
-                if (!this._lastDecodeMatrix) {
-                    this._lastDecodeMatrix = math.mat4(cfg.positionsDecodeMatrix);
-                } else {
-                    if (!math.compareMat4(this._lastDecodeMatrix, cfg.positionsDecodeMatrix)) {
-                        if (this._currentBatchingLayer) {
-                            this._currentBatchingLayer.finalize();
-                            this._currentBatchingLayer = null;
+            if (this._positionsCompression !== "disabled") {
+
+                if (cfg.positionsDecodeMatrix) {
+
+                    if (!this._lastDecodeMatrix) {
+                        this._lastDecodeMatrix = math.mat4(cfg.positionsDecodeMatrix);
+
+                    } else {
+
+                        if (!math.compareMat4(this._lastDecodeMatrix, cfg.positionsDecodeMatrix)) {
+                            if (this._currentBatchingLayer) {
+                                this._currentBatchingLayer.finalize();
+                                this._currentBatchingLayer = null;
+                            }
+                            this._lastDecodeMatrix.set(cfg.positionsDecodeMatrix);
                         }
-                        this._lastDecodeMatrix.set(cfg.positionsDecodeMatrix);
                     }
                 }
             }
@@ -33370,12 +33548,13 @@ class PerformanceModel extends Component {
             }
 
             if (!this._currentBatchingLayer) {
-                // console.log("New batching layer");
                 this._currentBatchingLayer = new BatchingLayer(this, {
                     primitive: "triangles",
                     buffer: this._batchingBuffer,
                     scratchMemory: this._batchingScratchMemory,
                     positionsDecodeMatrix: cfg.positionsDecodeMatrix,
+                    positionsCompression: this._positionsCompression,
+                    normalsCompression: this._normalsCompression,
                 });
                 this._layerList.push(this._currentBatchingLayer);
             }
@@ -33389,7 +33568,7 @@ class PerformanceModel extends Component {
             let meshMatrix;
             let worldMatrix = this._worldMatrixNonIdentity ? this._worldMatrix : null;
 
-            if (!cfg.positionsDecodeMatrix) {
+            if (this._positionsCompression !== "precompressed") {
 
                 if (cfg.matrix) {
                     meshMatrix = cfg.matrix;
@@ -33538,7 +33717,7 @@ class PerformanceModel extends Component {
             putBatchingBuffer(this._batchingBuffer);
             this._batchingBuffer = null;
         }
-        for (const geometryId in this._instancingLayers) {
+        for (let geometryId in this._instancingLayers) {
             if (this._instancingLayers.hasOwnProperty(geometryId)) {
                 this._instancingLayers[geometryId].finalize();
             }
@@ -41422,13 +41601,16 @@ var p = /*#__PURE__*/Object.freeze({
     __proto__: null
 });
 
-let pako = window.pako || p;
-if (!pako.inflate) {
-    // See https://github.com/nodeca/pako/issues/97
+/*
+
+Parser for .XKT Format V1
+
+ */
+
+const pako = window.pako || p;
+if (!pako.inflate) {  // See https://github.com/nodeca/pako/issues/97
     pako = pako.default;
 }
-
-const XKT_VERSION = 4; // Maximum XKT format version supported by this XKTLoaderPlugin
 
 const decompressColor = (function () {
     const color2 = new Float32Array(3);
@@ -41439,6 +41621,1078 @@ const decompressColor = (function () {
         return color2;
     };
 })();
+
+function extract(elements) {
+    return {
+        positions: elements[0],
+        normals: elements[1],
+        indices: elements[2],
+        edgeIndices: elements[3],
+        meshPositions: elements[4],
+        meshIndices: elements[5],
+        meshEdgesIndices: elements[6],
+        meshColors: elements[7],
+        entityIDs: elements[8],
+        entityMeshes: elements[9],
+        entityIsObjects: elements[10],
+        positionsDecodeMatrix: elements[11]
+    };
+}
+
+function inflate(deflatedData) {
+    return {
+        positions: new Uint16Array(pako.inflate(deflatedData.positions).buffer),
+        normals: new Int8Array(pako.inflate(deflatedData.normals).buffer),
+        indices: new Uint32Array(pako.inflate(deflatedData.indices).buffer),
+        edgeIndices: new Uint32Array(pako.inflate(deflatedData.edgeIndices).buffer),
+        meshPositions: new Uint32Array(pako.inflate(deflatedData.meshPositions).buffer),
+        meshIndices: new Uint32Array(pako.inflate(deflatedData.meshIndices).buffer),
+        meshEdgesIndices: new Uint32Array(pako.inflate(deflatedData.meshEdgesIndices).buffer),
+        meshColors: new Uint8Array(pako.inflate(deflatedData.meshColors).buffer),
+        entityIDs: pako.inflate(deflatedData.entityIDs, {to: 'string'}),
+        entityMeshes: new Uint32Array(pako.inflate(deflatedData.entityMeshes).buffer),
+        entityIsObjects: new Uint8Array(pako.inflate(deflatedData.entityIsObjects).buffer),
+        positionsDecodeMatrix: new Float32Array(pako.inflate(deflatedData.positionsDecodeMatrix).buffer)
+    };
+}
+
+function load(viewer, options, inflatedData, performanceModel) {
+
+    performanceModel.positionsCompression = "precompressed";
+    performanceModel.normalsCompression = "precompressed";
+
+    const positions = inflatedData.positions;
+    const normals = inflatedData.normals;
+    const indices = inflatedData.indices;
+    const edgeIndices = inflatedData.edgeIndices;
+    const meshPositions = inflatedData.meshPositions;
+    const meshIndices = inflatedData.meshIndices;
+    const meshEdgesIndices = inflatedData.meshEdgesIndices;
+    const meshColors = inflatedData.meshColors;
+    const entityIDs = JSON.parse(inflatedData.entityIDs);
+    const entityMeshes = inflatedData.entityMeshes;
+    const entityIsObjects = inflatedData.entityIsObjects;
+    const numMeshes = meshPositions.length;
+    const numEntities = entityMeshes.length;
+
+    for (let i = 0; i < numEntities; i++) {
+
+        const entityId = entityIDs [i];
+        const metaObject = viewer.metaScene.metaObjects[entityId];
+        const entityDefaults = {};
+        const meshDefaults = {};
+
+        if (metaObject) {
+
+            if (options.excludeTypesMap && metaObject.type && options.excludeTypesMap[metaObject.type]) {
+                continue;
+            }
+
+            if (options.includeTypesMap && metaObject.type && (!options.includeTypesMap[metaObject.type])) {
+                continue;
+            }
+
+            const props = options.objectDefaults ? options.objectDefaults[metaObject.type || "DEFAULT"] : null;
+
+            if (props) {
+                if (props.visible === false) {
+                    entityDefaults.visible = false;
+                }
+                if (props.pickable === false) {
+                    entityDefaults.pickable = false;
+                }
+                if (props.colorize) {
+                    meshDefaults.color = props.colorize;
+                }
+                if (props.opacity !== undefined && props.opacity !== null) {
+                    meshDefaults.opacity = props.opacity;
+                }
+            }
+        } else {
+            if (options.excludeUnclassifiedObjects) {
+                continue;
+            }
+        }
+
+        const lastEntity = (i === numEntities - 1);
+        const meshIds = [];
+
+        for (let j = entityMeshes [i], jlen = lastEntity ? entityMeshes.length : entityMeshes [i + 1]; j < jlen; j++) {
+
+            const lastMesh = (j === (numMeshes - 1));
+            const meshId = entityId + ".mesh." + j;
+
+            const color = decompressColor(meshColors.subarray((j * 4), (j * 4) + 3));
+            const opacity = meshColors[(j * 4) + 3] / 255.0;
+
+            performanceModel.createMesh(utils.apply(meshDefaults, {
+                id: meshId,
+                primitive: "triangles",
+                positions: positions.subarray(meshPositions [j], lastMesh ? positions.length : meshPositions [j + 1]),
+                normals: normals.subarray(meshPositions [j], lastMesh ? positions.length : meshPositions [j + 1]),
+                indices: indices.subarray(meshIndices [j], lastMesh ? indices.length : meshIndices [j + 1]),
+                edgeIndices: edgeIndices.subarray(meshEdgesIndices [j], lastMesh ? edgeIndices.length : meshEdgesIndices [j + 1]),
+                positionsDecodeMatrix: inflatedData.positionsDecodeMatrix,
+                color: color,
+                opacity: opacity
+            }));
+
+            meshIds.push(meshId);
+        }
+
+        performanceModel.createEntity(utils.apply(entityDefaults, {
+            id: entityId,
+            isObject: (entityIsObjects [i] === 1),
+            meshIds: meshIds
+        }));
+    }
+}
+
+const ParserV1 = {
+    version: 1,
+    parse: function (viewer, options, elements, performanceModel) {
+        const deflatedData = extract(elements);
+        const inflatedData = inflate(deflatedData);
+        load(viewer, options, inflatedData, performanceModel);
+    }
+};
+
+/*
+
+Parser for .XKT Format V2
+
+ */
+
+const pako$1 = window.pako || p;
+if (!pako$1.inflate) {  // See https://github.com/nodeca/pako/issues/97
+    pako$1 = pako$1.default;
+}
+
+function extract$1(elements) {
+    return {
+
+        positions: elements[0],
+        normals: elements[1],
+        indices: elements[2],
+        edgeIndices: elements[3],
+
+        meshPositions: elements[4],
+        meshIndices: elements[5],
+        meshEdgesIndices: elements[6],
+        meshColors: elements[7],
+
+        entityIDs: elements[8],
+        entityMeshes: elements[9],
+        entityIsObjects: elements[10],
+
+        positionsDecodeMatrix: elements[11],
+
+        entityMeshIds: elements[12],
+        entityMatrices: elements[13],
+        entityUsesInstancing: elements[14]
+    };
+}
+
+function inflate$1(deflatedData) {
+    return {
+        positions: new Uint16Array(pako$1.inflate(deflatedData.positions).buffer),
+        normals: new Int8Array(pako$1.inflate(deflatedData.normals).buffer),
+        indices: new Uint32Array(pako$1.inflate(deflatedData.indices).buffer),
+        edgeIndices: new Uint32Array(pako$1.inflate(deflatedData.edgeIndices).buffer),
+
+        meshPositions: new Uint32Array(pako$1.inflate(deflatedData.meshPositions).buffer),
+        meshIndices: new Uint32Array(pako$1.inflate(deflatedData.meshIndices).buffer),
+        meshEdgesIndices: new Uint32Array(pako$1.inflate(deflatedData.meshEdgesIndices).buffer),
+        meshColors: new Uint8Array(pako$1.inflate(deflatedData.meshColors).buffer),
+
+        entityIDs: pako$1.inflate(deflatedData.entityIDs, {to: 'string'}),
+        entityMeshes: new Uint32Array(pako$1.inflate(deflatedData.entityMeshes).buffer),
+        entityIsObjects: new Uint8Array(pako$1.inflate(deflatedData.entityIsObjects).buffer),
+
+        positionsDecodeMatrix: new Float32Array(pako$1.inflate(deflatedData.positionsDecodeMatrix).buffer),
+
+        entityMeshIds: new Uint32Array(pako$1.inflate(deflatedData.entityMeshIds).buffer),
+        entityMatrices: new Float32Array(pako$1.inflate(deflatedData.entityMatrices).buffer),
+        entityUsesInstancing: new Uint8Array(pako$1.inflate(deflatedData.entityUsesInstancing).buffer)
+    };
+}
+
+const decompressColor$1 = (function () {
+    const color2 = new Float32Array(3);
+    return function (color) {
+        color2[0] = color[0] / 255.0;
+        color2[1] = color[1] / 255.0;
+        color2[2] = color[2] / 255.0;
+        return color2;
+    };
+})();
+
+function load$1(viewer, options, inflatedData, performanceModel) {
+
+    performanceModel.positionsCompression = "precompressed";
+    performanceModel.normalsCompression = "precompressed";
+
+    const positions = inflatedData.positions;
+    const normals = inflatedData.normals;
+    const indices = inflatedData.indices;
+    const edgeIndices = inflatedData.edgeIndices;
+    const meshPositions = inflatedData.meshPositions;
+    const meshIndices = inflatedData.meshIndices;
+    const meshEdgesIndices = inflatedData.meshEdgesIndices;
+    const meshColors = inflatedData.meshColors;
+    const entityIDs = JSON.parse(inflatedData.entityIDs);
+    const entityMeshes = inflatedData.entityMeshes;
+    const entityIsObjects = inflatedData.entityIsObjects;
+    const entityMeshIds = inflatedData.entityMeshIds;
+    const entityMatrices = inflatedData.entityMatrices;
+    const entityUsesInstancing = inflatedData.entityUsesInstancing;
+
+    const numMeshes = meshPositions.length;
+    const numEntities = entityMeshes.length;
+
+    const alreadyCreatedGeometries = {};
+
+    for (let i = 0; i < numEntities; i++) {
+
+        const entityId = entityIDs [i];
+        const metaObject = viewer.metaScene.metaObjects[entityId];
+        const entityDefaults = {};
+        const meshDefaults = {};
+        const entityMatrix = entityMatrices.subarray((i * 16), (i * 16) + 16);
+
+        if (metaObject) {
+            if (options.excludeTypesMap && metaObject.type && options.excludeTypesMap[metaObject.type]) {
+                continue;
+            }
+            if (options.includeTypesMap && metaObject.type && (!options.includeTypesMap[metaObject.type])) {
+                continue;
+            }
+            const props = options.objectDefaults ? options.objectDefaults[metaObject.type || "DEFAULT"] : null;
+            if (props) {
+                if (props.visible === false) {
+                    entityDefaults.visible = false;
+                }
+                if (props.pickable === false) {
+                    entityDefaults.pickable = false;
+                }
+                if (props.colorize) {
+                    meshDefaults.color = props.colorize;
+                }
+                if (props.opacity !== undefined && props.opacity !== null) {
+                    meshDefaults.opacity = props.opacity;
+                }
+            }
+        } else {
+            if (options.excludeUnclassifiedObjects) {
+                continue;
+            }
+        }
+
+        const lastEntity = (i === numEntities - 1);
+
+        const meshIds = [];
+
+        for (let j = entityMeshes [i], jlen = lastEntity ? entityMeshIds.length : entityMeshes [i + 1]; j < jlen; j++) {
+
+            const jj = entityMeshIds [j];
+
+            const lastMesh = (jj === (numMeshes - 1));
+            const meshId = entityId + ".mesh." + jj;
+
+            const color = decompressColor$1(meshColors.subarray((jj * 4), (jj * 4) + 3));
+            const opacity = meshColors[(jj * 4) + 3] / 255.0;
+
+            const tmpPositions = positions.subarray(meshPositions [jj], lastMesh ? positions.length : meshPositions [jj + 1]);
+            const tmpNormals = normals.subarray(meshPositions [jj], lastMesh ? positions.length : meshPositions [jj + 1]);
+            const tmpIndices = indices.subarray(meshIndices [jj], lastMesh ? indices.length : meshIndices [jj + 1]);
+            const tmpEdgeIndices = edgeIndices.subarray(meshEdgesIndices [jj], lastMesh ? edgeIndices.length : meshEdgesIndices [jj + 1]);
+
+            if (entityUsesInstancing [i] === 1) {
+
+                const geometryId = "geometry." + jj;
+
+                if (!(geometryId in alreadyCreatedGeometries)) {
+
+                    performanceModel.createGeometry({
+                        id: geometryId,
+                        positions: tmpPositions,
+                        normals: tmpNormals,
+                        indices: tmpIndices,
+                        edgeIndices: tmpEdgeIndices,
+                        primitive: "triangles",
+                        positionsDecodeMatrix: inflatedData.positionsDecodeMatrix,
+                    });
+
+                    alreadyCreatedGeometries [geometryId] = true;
+                }
+
+                performanceModel.createMesh(utils.apply(meshDefaults, {
+                    id: meshId,
+                    color: color,
+                    opacity: opacity,
+                    matrix: entityMatrix,
+                    geometryId: geometryId,
+                }));
+
+                meshIds.push(meshId);
+                
+            } else {
+
+                performanceModel.createMesh(utils.apply(meshDefaults, {
+                    id: meshId,
+                    primitive: "triangles",
+                    positions: tmpPositions,
+                    normals: tmpNormals,
+                    indices: tmpIndices,
+                    edgeIndices: tmpEdgeIndices,
+                    positionsDecodeMatrix: inflatedData.positionsDecodeMatrix,
+                    color: color,
+                    opacity: opacity
+                }));
+
+                meshIds.push(meshId);
+            }
+        }
+
+        if (meshIds.length) {
+            performanceModel.createEntity(utils.apply(entityDefaults, {
+                id: entityId,
+                isObject: (entityIsObjects [i] === 1),
+                meshIds: meshIds
+            }));
+        }
+    }
+}
+
+const ParserV2 = {
+    version: 2,
+    parse: function (viewer, options, elements, performanceModel) {
+        const deflatedData = extract$1(elements);
+        const inflatedData = inflate$1(deflatedData);
+        load$1(viewer, options, inflatedData, performanceModel);
+    }
+};
+
+/*
+
+Parser for .XKT Format V3
+
+ */
+
+const pako$2 = window.pako || p;
+if (!pako$2.inflate) {  // See https://github.com/nodeca/pako/issues/97
+    pako$2 = pako$2.default;
+}
+
+function extract$2(elements) {
+    return {
+        positions: elements[0],
+        normals: elements[1],
+        indices: elements[2],
+        edgeIndices: elements[3],
+        meshPositions: elements[4],
+        meshIndices: elements[5],
+        meshEdgesIndices: elements[6],
+        meshColors: elements[7],
+        entityIDs: elements[8],
+        entityMeshes: elements[9],
+        entityIsObjects: elements[10],
+        instancedPositionsDecodeMatrix: elements[11],
+        batchedPositionsDecodeMatrix: elements[12],
+        entityMeshIds: elements[13],
+        entityMatrices: elements[14],
+        entityUsesInstancing: elements[15]
+    };
+}
+
+function inflate$2(deflatedData) {
+    return {
+        positions: new Uint16Array(pako$2.inflate(deflatedData.positions).buffer),
+        normals: new Int8Array(pako$2.inflate(deflatedData.normals).buffer),
+        indices: new Uint32Array(pako$2.inflate(deflatedData.indices).buffer),
+        edgeIndices: new Uint32Array(pako$2.inflate(deflatedData.edgeIndices).buffer),
+        meshPositions: new Uint32Array(pako$2.inflate(deflatedData.meshPositions).buffer),
+        meshIndices: new Uint32Array(pako$2.inflate(deflatedData.meshIndices).buffer),
+        meshEdgesIndices: new Uint32Array(pako$2.inflate(deflatedData.meshEdgesIndices).buffer),
+        meshColors: new Uint8Array(pako$2.inflate(deflatedData.meshColors).buffer),
+        entityIDs: pako$2.inflate(deflatedData.entityIDs, {to: 'string'}),
+        entityMeshes: new Uint32Array(pako$2.inflate(deflatedData.entityMeshes).buffer),
+        entityIsObjects: new Uint8Array(pako$2.inflate(deflatedData.entityIsObjects).buffer),
+        instancedPositionsDecodeMatrix: new Float32Array(pako$2.inflate(deflatedData.instancedPositionsDecodeMatrix).buffer),
+        batchedPositionsDecodeMatrix: new Float32Array(pako$2.inflate(deflatedData.batchedPositionsDecodeMatrix).buffer),
+        entityMeshIds: new Uint32Array(pako$2.inflate(deflatedData.entityMeshIds).buffer),
+        entityMatrices: new Float32Array(pako$2.inflate(deflatedData.entityMatrices).buffer),
+        entityUsesInstancing: new Uint8Array(pako$2.inflate(deflatedData.entityUsesInstancing).buffer)
+    };
+}
+
+const decompressColor$2 = (function () {
+    const color2 = new Float32Array(3);
+    return function (color) {
+        color2[0] = color[0] / 255.0;
+        color2[1] = color[1] / 255.0;
+        color2[2] = color[2] / 255.0;
+        return color2;
+    };
+})();
+
+function load$2(viewer, options, inflatedData, performanceModel) {
+
+    performanceModel.positionsCompression = "precompressed";
+    performanceModel.normalsCompression = "precompressed";
+
+    const positions = inflatedData.positions;
+    const normals = inflatedData.normals;
+    const indices = inflatedData.indices;
+    const edgeIndices = inflatedData.edgeIndices;
+    const meshPositions = inflatedData.meshPositions;
+    const meshIndices = inflatedData.meshIndices;
+    const meshEdgesIndices = inflatedData.meshEdgesIndices;
+    const meshColors = inflatedData.meshColors;
+    const entityIDs = JSON.parse(inflatedData.entityIDs);
+    const entityMeshes = inflatedData.entityMeshes;
+    const entityIsObjects = inflatedData.entityIsObjects;
+    const entityMeshIds = inflatedData.entityMeshIds;
+    const entityMatrices = inflatedData.entityMatrices;
+    const entityUsesInstancing = inflatedData.entityUsesInstancing;
+
+    const numMeshes = meshPositions.length;
+    const numEntities = entityMeshes.length;
+
+    const _alreadyCreatedGeometries = {};
+
+    for (let i = 0; i < numEntities; i++) {
+
+        const entityId = entityIDs [i];
+        const metaObject = viewer.metaScene.metaObjects[entityId];
+        const entityDefaults = {};
+        const meshDefaults = {};
+        const entityMatrix = entityMatrices.subarray((i * 16), (i * 16) + 16);
+
+        if (metaObject) {
+
+            if (options.excludeTypesMap && metaObject.type && options.excludeTypesMap[metaObject.type]) {
+                continue;
+            }
+
+            if (options.includeTypesMap && metaObject.type && (!options.includeTypesMap[metaObject.type])) {
+                continue;
+            }
+
+            const props = options.objectDefaults ? options.objectDefaults[metaObject.type || "DEFAULT"] : null;
+
+            if (props) {
+                if (props.visible === false) {
+                    entityDefaults.visible = false;
+                }
+                if (props.pickable === false) {
+                    entityDefaults.pickable = false;
+                }
+                if (props.colorize) {
+                    meshDefaults.color = props.colorize;
+                }
+                if (props.opacity !== undefined && props.opacity !== null) {
+                    meshDefaults.opacity = props.opacity;
+                }
+            }
+        } else {
+            if (options.excludeUnclassifiedObjects) {
+                continue;
+            }
+        }
+
+        const lastEntity = (i === numEntities - 1);
+
+        const meshIds = [];
+
+        for (let j = entityMeshes [i], jlen = lastEntity ? entityMeshIds.length : entityMeshes [i + 1]; j < jlen; j++) {
+            var jj = entityMeshIds [j];
+
+            const lastMesh = (jj === (numMeshes - 1));
+            const meshId = entityId + ".mesh." + jj;
+
+            const color = decompressColor$2(meshColors.subarray((jj * 4), (jj * 4) + 3));
+            const opacity = meshColors[(jj * 4) + 3] / 255.0;
+
+            var tmpPositions = positions.subarray(meshPositions [jj], lastMesh ? positions.length : meshPositions [jj + 1]);
+            var tmpNormals = normals.subarray(meshPositions [jj], lastMesh ? positions.length : meshPositions [jj + 1]);
+            var tmpIndices = indices.subarray(meshIndices [jj], lastMesh ? indices.length : meshIndices [jj + 1]);
+            var tmpEdgeIndices = edgeIndices.subarray(meshEdgesIndices [jj], lastMesh ? edgeIndices.length : meshEdgesIndices [jj + 1]);
+
+            if (entityUsesInstancing [i] === 1) {
+                var geometryId = "geometry." + jj;
+
+                if (!(geometryId in _alreadyCreatedGeometries)) {
+
+                    performanceModel.createGeometry({
+                        id: geometryId,
+                        positions: tmpPositions,
+                        normals: tmpNormals,
+                        indices: tmpIndices,
+                        edgeIndices: tmpEdgeIndices,
+                        primitive: "triangles",
+                        positionsDecodeMatrix: inflatedData.instancedPositionsDecodeMatrix
+                    });
+
+                    _alreadyCreatedGeometries [geometryId] = true;
+                }
+
+                performanceModel.createMesh(utils.apply(meshDefaults, {
+                    id: meshId,
+                    color: color,
+                    opacity: opacity,
+                    matrix: entityMatrix,
+                    geometryId: geometryId,
+                }));
+
+                meshIds.push(meshId);
+
+            } else {
+
+                performanceModel.createMesh(utils.apply(meshDefaults, {
+                    id: meshId,
+                    primitive: "triangles",
+                    positions: tmpPositions,
+                    normals: tmpNormals,
+                    indices: tmpIndices,
+                    edgeIndices: tmpEdgeIndices,
+                    positionsDecodeMatrix: inflatedData.batchedPositionsDecodeMatrix,
+                    color: color,
+                    opacity: opacity
+                }));
+
+                meshIds.push(meshId);
+            }
+        }
+
+        if (meshIds.length) {
+            performanceModel.createEntity(utils.apply(entityDefaults, {
+                id: entityId,
+                isObject: (entityIsObjects [i] === 1),
+                meshIds: meshIds
+            }));
+        }
+    }
+}
+
+
+const ParserV3 = {
+    version: 3,
+    parse: function (viewer, options, elements, performanceModel) {
+        const deflatedData = extract$2(elements);
+        const inflatedData = inflate$2(deflatedData);
+        load$2(viewer, options, inflatedData, performanceModel);
+    }
+};
+
+/*
+
+Parser for .XKT Format V4
+
+ */
+
+let pako$3 = window.pako || p;
+if (!pako$3.inflate) {  // See https://github.com/nodeca/pako/issues/97
+    pako$3 = pako$3.default;
+}
+
+function extract$3(elements) {
+    return {
+        positions: elements[0],
+        normals: elements[1],
+        indices: elements[2],
+        edgeIndices: elements[3],
+        decodeMatrices: elements[4],
+        matrices: elements[5],
+        eachPrimitivePositionsAndNormalsPortion: elements[6],
+        eachPrimitiveIndicesPortion: elements[7],
+        eachPrimitiveEdgeIndicesPortion: elements[8],
+        eachPrimitiveDecodeMatricesPortion: elements[9],
+        eachPrimitiveColor: elements[10],
+        primitiveInstances: elements[11],
+        eachEntityId: elements[12],
+        eachEntityPrimitiveInstancesPortion: elements[13],
+        eachEntityMatricesPortion: elements[14],
+        eachEntityMatrix: elements[15]
+    };
+}
+
+function inflate$3(deflatedData) {
+    return {
+        positions: new Uint16Array(pako$3.inflate(deflatedData.positions).buffer),
+        normals: new Int8Array(pako$3.inflate(deflatedData.normals).buffer),
+        indices: new Uint32Array(pako$3.inflate(deflatedData.indices).buffer),
+        edgeIndices: new Uint32Array(pako$3.inflate(deflatedData.edgeIndices).buffer),
+        decodeMatrices: new Float32Array(pako$3.inflate(deflatedData.decodeMatrices).buffer),
+        matrices: new Float32Array(pako$3.inflate(deflatedData.matrices).buffer),
+        eachPrimitivePositionsAndNormalsPortion: new Uint32Array(pako$3.inflate(deflatedData.eachPrimitivePositionsAndNormalsPortion).buffer),
+        eachPrimitiveIndicesPortion: new Uint32Array(pako$3.inflate(deflatedData.eachPrimitiveIndicesPortion).buffer),
+        eachPrimitiveEdgeIndicesPortion: new Uint32Array(pako$3.inflate(deflatedData.eachPrimitiveEdgeIndicesPortion).buffer),
+        eachPrimitiveDecodeMatricesPortion: new Uint32Array(pako$3.inflate(deflatedData.eachPrimitiveDecodeMatricesPortion).buffer),
+        eachPrimitiveColor: new Uint8Array(pako$3.inflate(deflatedData.eachPrimitiveColor).buffer),
+        primitiveInstances: new Uint32Array(pako$3.inflate(deflatedData.primitiveInstances).buffer),
+        eachEntityId: pako$3.inflate(deflatedData.eachEntityId, {to: 'string'}),
+        eachEntityPrimitiveInstancesPortion: new Uint32Array(pako$3.inflate(deflatedData.eachEntityPrimitiveInstancesPortion).buffer),
+        eachEntityMatricesPortion: new Uint32Array(pako$3.inflate(deflatedData.eachEntityMatricesPortion).buffer)
+    };
+}
+
+const decompressColor$3 = (function () {
+    const color2 = new Float32Array(3);
+    return function (color) {
+        color2[0] = color[0] / 255.0;
+        color2[1] = color[1] / 255.0;
+        color2[2] = color[2] / 255.0;
+        return color2;
+    };
+})();
+
+function load$3(viewer, options, inflatedData, performanceModel) {
+
+    performanceModel.positionsCompression = "precompressed";
+    performanceModel.normalsCompression = "precompressed";
+    
+    const positions = inflatedData.positions;
+    const normals = inflatedData.normals;
+    const indices = inflatedData.indices;
+    const edgeIndices = inflatedData.edgeIndices;
+    const decodeMatrices = inflatedData.decodeMatrices;
+    const matrices = inflatedData.matrices;
+
+    const eachPrimitivePositionsAndNormalsPortion = inflatedData.eachPrimitivePositionsAndNormalsPortion;
+    const eachPrimitiveIndicesPortion = inflatedData.eachPrimitiveIndicesPortion;
+    const eachPrimitiveEdgeIndicesPortion = inflatedData.eachPrimitiveEdgeIndicesPortion;
+    const eachPrimitiveDecodeMatricesPortion = inflatedData.eachPrimitiveDecodeMatricesPortion;
+    const eachPrimitiveColor = inflatedData.eachPrimitiveColor;
+
+    const primitiveInstances = inflatedData.primitiveInstances;
+
+    const eachEntityId = JSON.parse(inflatedData.eachEntityId);
+    const eachEntityPrimitiveInstancesPortion = inflatedData.eachEntityPrimitiveInstancesPortion;
+    const eachEntityMatricesPortion = inflatedData.eachEntityMatricesPortion;
+
+    const numPrimitives = eachPrimitivePositionsAndNormalsPortion.length;
+    const numPrimitiveInstances = primitiveInstances.length;
+    const primitiveInstanceCounts = new Uint8Array(numPrimitives); // For each mesh, how many times it is instanced
+    const orderedPrimitiveIndexes = new Uint32Array(numPrimitives); // For each mesh, its index sorted into runs that share the same decode matrix
+
+    const numEntities = eachEntityId.length;
+
+    // Get lookup that orders primitives into runs that share the same decode matrices;
+    // this is used to create meshes in batches that use the same decode matrix
+
+    for (let primitiveIndex = 0; primitiveIndex < numPrimitives; primitiveIndex++) {
+        orderedPrimitiveIndexes[primitiveIndex] = primitiveIndex;
+    }
+
+    orderedPrimitiveIndexes.sort((i1, i2) => {
+        if (eachPrimitiveDecodeMatricesPortion[i1] < eachPrimitiveDecodeMatricesPortion[i2]) {
+            return -1;
+        }
+        if (eachPrimitiveDecodeMatricesPortion[i1] > eachPrimitiveDecodeMatricesPortion[i2]) {
+            return 1;
+        }
+        return 0;
+    });
+
+    // Count instances of each primitive
+
+    for (let primitiveInstanceIndex = 0; primitiveInstanceIndex < numPrimitiveInstances; primitiveInstanceIndex++) {
+        const primitiveIndex = primitiveInstances[primitiveInstanceIndex];
+        primitiveInstanceCounts[primitiveIndex]++;
+    }
+
+    // Map batched primitives to the entities that will use them
+
+    const batchedPrimitiveEntityIndexes = {};
+
+    for (let entityIndex = 0; entityIndex < numEntities; entityIndex++) {
+
+        const lastEntityIndex = (numEntities - 1);
+        const atLastEntity = (entityIndex === lastEntityIndex);
+        const firstEntityPrimitiveInstanceIndex = eachEntityPrimitiveInstancesPortion [entityIndex];
+        const lastEntityPrimitiveInstanceIndex = atLastEntity ? eachEntityPrimitiveInstancesPortion[lastEntityIndex] : eachEntityPrimitiveInstancesPortion[entityIndex + 1];
+
+        for (let primitiveInstancesIndex = firstEntityPrimitiveInstanceIndex; primitiveInstancesIndex < lastEntityPrimitiveInstanceIndex; primitiveInstancesIndex++) {
+
+            const primitiveIndex = primitiveInstances[primitiveInstancesIndex];
+            const primitiveInstanceCount = primitiveInstanceCounts[primitiveIndex];
+            const isInstancedPrimitive = (primitiveInstanceCount > 1);
+
+            if (!isInstancedPrimitive) {
+                batchedPrimitiveEntityIndexes[primitiveIndex] = entityIndex;
+            }
+        }
+    }
+
+    // Create 1) geometries for instanced primitives, and 2) meshes for batched primitives.  We create all the
+    // batched meshes now, before we create entities, because we're creating the batched meshes in runs that share
+    // the same decode matrices. Each run of meshes with the same decode matrix will end up in the same
+    // BatchingLayer; the PerformanceModel#createMesh() method starts a new BatchingLayer each time the decode
+    // matrix has changed since the last invocation of that method, hence why we need to order batched meshes
+    // in runs like this.
+
+    for (let primitiveIndex = 0; primitiveIndex < numPrimitives; primitiveIndex++) {
+
+        const orderedPrimitiveIndex = orderedPrimitiveIndexes[primitiveIndex];
+
+        const atLastPrimitive = (orderedPrimitiveIndex === (numPrimitives - 1));
+
+        const primitiveInstanceCount = primitiveInstanceCounts[orderedPrimitiveIndex];
+        const isInstancedPrimitive = (primitiveInstanceCount > 1);
+
+        const color = decompressColor$3(eachPrimitiveColor.subarray((orderedPrimitiveIndex * 4), (orderedPrimitiveIndex * 4) + 3));
+        const opacity = eachPrimitiveColor[(orderedPrimitiveIndex * 4) + 3] / 255.0;
+
+        const primitivePositions = positions.subarray(eachPrimitivePositionsAndNormalsPortion [orderedPrimitiveIndex], atLastPrimitive ? positions.length : eachPrimitivePositionsAndNormalsPortion [orderedPrimitiveIndex + 1]);
+        const primitiveNormals = normals.subarray(eachPrimitivePositionsAndNormalsPortion [orderedPrimitiveIndex], atLastPrimitive ? normals.length : eachPrimitivePositionsAndNormalsPortion [orderedPrimitiveIndex + 1]);
+        const primitiveIndices = indices.subarray(eachPrimitiveIndicesPortion [orderedPrimitiveIndex], atLastPrimitive ? indices.length : eachPrimitiveIndicesPortion [orderedPrimitiveIndex + 1]);
+        const primitiveEdgeIndices = edgeIndices.subarray(eachPrimitiveEdgeIndicesPortion [orderedPrimitiveIndex], atLastPrimitive ? edgeIndices.length : eachPrimitiveEdgeIndicesPortion [orderedPrimitiveIndex + 1]);
+        const primitiveDecodeMatrix = decodeMatrices.subarray(eachPrimitiveDecodeMatricesPortion [orderedPrimitiveIndex], eachPrimitiveDecodeMatricesPortion [orderedPrimitiveIndex] + 16);
+
+        if (isInstancedPrimitive) {
+
+            // Primitive instanced by more than one entity, and has positions in Model-space
+
+            var geometryId = "geometry" + orderedPrimitiveIndex; // These IDs are local to the PerformanceModel
+
+            performanceModel.createGeometry({
+                id: geometryId,
+                primitive: "triangles",
+                positions: primitivePositions,
+                normals: primitiveNormals,
+                indices: primitiveIndices,
+                edgeIndices: primitiveEdgeIndices,
+                positionsDecodeMatrix: primitiveDecodeMatrix
+            });
+
+        } else {
+
+            // Primitive is used only by one entity, and has positions pre-transformed into World-space
+
+            const meshId = orderedPrimitiveIndex; // These IDs are local to the PerformanceModel
+
+            const entityIndex = batchedPrimitiveEntityIndexes[orderedPrimitiveIndex];
+            const entityId = eachEntityId[entityIndex];
+
+            const meshDefaults = {}; // TODO: get from lookup from entity IDs
+
+            performanceModel.createMesh(utils.apply(meshDefaults, {
+                id: meshId,
+                primitive: "triangles",
+                positions: primitivePositions,
+                normals: primitiveNormals,
+                indices: primitiveIndices,
+                edgeIndices: primitiveEdgeIndices,
+                positionsDecodeMatrix: primitiveDecodeMatrix,
+                color: color,
+                opacity: opacity
+            }));
+        }
+    }
+
+    let countInstances = 0;
+
+    for (let entityIndex = 0; entityIndex < numEntities; entityIndex++) {
+
+        const lastEntityIndex = (numEntities - 1);
+        const atLastEntity = (entityIndex === lastEntityIndex);
+        const entityId = eachEntityId[entityIndex];
+        const firstEntityPrimitiveInstanceIndex = eachEntityPrimitiveInstancesPortion [entityIndex];
+        const lastEntityPrimitiveInstanceIndex = atLastEntity ? eachEntityPrimitiveInstancesPortion[lastEntityIndex] : eachEntityPrimitiveInstancesPortion[entityIndex + 1];
+
+        const meshIds = [];
+
+        for (let primitiveInstancesIndex = firstEntityPrimitiveInstanceIndex; primitiveInstancesIndex < lastEntityPrimitiveInstanceIndex; primitiveInstancesIndex++) {
+
+            const primitiveIndex = primitiveInstances[primitiveInstancesIndex];
+            const primitiveInstanceCount = primitiveInstanceCounts[primitiveIndex];
+            const isInstancedPrimitive = (primitiveInstanceCount > 1);
+
+            if (isInstancedPrimitive) {
+
+                const meshDefaults = {}; // TODO: get from lookup from entity IDs
+
+                const meshId = "instance." + countInstances++;
+                const geometryId = "geometry" + primitiveIndex;
+                const matricesIndex = (eachEntityMatricesPortion [entityIndex]) * 16;
+                const matrix = matrices.subarray(matricesIndex, matricesIndex + 16);
+
+                performanceModel.createMesh(utils.apply(meshDefaults, {
+                    id: meshId,
+                    geometryId: geometryId,
+                    matrix: matrix
+                }));
+
+                meshIds.push(meshId);
+
+            } else {
+                meshIds.push(primitiveIndex);
+            }
+        }
+
+        if (meshIds.length > 0) {
+
+            const entityDefaults = {}; // TODO: get from lookup from entity IDs
+
+            performanceModel.createEntity(utils.apply(entityDefaults, {
+                id: entityId,
+                isObject: true, ///////////////// TODO: If metaobject exists
+                meshIds: meshIds
+            }));
+        }
+    }
+}
+
+const ParserV4 = {
+    version: 4,
+    parse: function (viewer, options, elements, performanceModel) {
+        const deflatedData = extract$3(elements);
+        const inflatedData = inflate$3(deflatedData);
+        load$3(viewer, options, inflatedData, performanceModel);
+    }
+};
+
+/*
+
+Parser for .XKT Format V5
+
+ */
+
+const pako$4 = window.pako || p;
+if (!pako$4.inflate) {  // See https://github.com/nodeca/pako/issues/97
+    pako$4 = pako$4.default;
+}
+
+function extract$4(elements) {
+    return {
+        positions: elements[0],
+        normals: elements[1],
+        indices: elements[2],
+        edgeIndices: elements[3],
+        matrices: elements[4],
+        eachPrimitivePositionsAndNormalsPortion: elements[5],
+        eachPrimitiveIndicesPortion: elements[6],
+        eachPrimitiveEdgeIndicesPortion: elements[7],
+        eachPrimitiveColor: elements[8],
+        primitiveInstances: elements[9],
+        eachEntityId: elements[10],
+        eachEntityPrimitiveInstancesPortion: elements[11],
+        eachEntityMatricesPortion: elements[12]
+    };
+}
+
+function inflate$4(deflatedData) {
+    return {
+        positions: new Float32Array(pako$4.inflate(deflatedData.positions).buffer),
+        normals: new Int8Array(pako$4.inflate(deflatedData.normals).buffer),
+        indices: new Uint32Array(pako$4.inflate(deflatedData.indices).buffer),
+        edgeIndices: new Uint32Array(pako$4.inflate(deflatedData.edgeIndices).buffer),
+        matrices: new Float32Array(pako$4.inflate(deflatedData.matrices).buffer),
+        eachPrimitivePositionsAndNormalsPortion: new Uint32Array(pako$4.inflate(deflatedData.eachPrimitivePositionsAndNormalsPortion).buffer),
+        eachPrimitiveIndicesPortion: new Uint32Array(pako$4.inflate(deflatedData.eachPrimitiveIndicesPortion).buffer),
+        eachPrimitiveEdgeIndicesPortion: new Uint32Array(pako$4.inflate(deflatedData.eachPrimitiveEdgeIndicesPortion).buffer),
+        eachPrimitiveColor: new Uint8Array(pako$4.inflate(deflatedData.eachPrimitiveColor).buffer),
+        primitiveInstances: new Uint32Array(pako$4.inflate(deflatedData.primitiveInstances).buffer),
+        eachEntityId: pako$4.inflate(deflatedData.eachEntityId, {to: 'string'}),
+        eachEntityPrimitiveInstancesPortion: new Uint32Array(pako$4.inflate(deflatedData.eachEntityPrimitiveInstancesPortion).buffer),
+        eachEntityMatricesPortion: new Uint32Array(pako$4.inflate(deflatedData.eachEntityMatricesPortion).buffer)
+    };
+}
+
+const decompressColor$4 = (function () {
+    const color2 = new Float32Array(3);
+    return function (color) {
+        color2[0] = color[0] / 255.0;
+        color2[1] = color[1] / 255.0;
+        color2[2] = color[2] / 255.0;
+        return color2;
+    };
+})();
+
+function load$4(viewer, options, inflatedData, performanceModel) {
+
+    performanceModel.positionsCompression = "disabled"; // Positions in XKT V4 are floats, which we never quantize, for precision with big models
+    performanceModel.normalsCompression = "precompressed"; // Normals are oct-encoded though
+
+    const positions = inflatedData.positions;
+    const normals = inflatedData.normals;
+    const indices = inflatedData.indices;
+    const edgeIndices = inflatedData.edgeIndices;
+    const matrices = inflatedData.matrices;
+
+    const eachPrimitivePositionsAndNormalsPortion = inflatedData.eachPrimitivePositionsAndNormalsPortion;
+    const eachPrimitiveIndicesPortion = inflatedData.eachPrimitiveIndicesPortion;
+    const eachPrimitiveEdgeIndicesPortion = inflatedData.eachPrimitiveEdgeIndicesPortion;
+    const eachPrimitiveColor = inflatedData.eachPrimitiveColor;
+
+    const primitiveInstances = inflatedData.primitiveInstances;
+
+    const eachEntityId = JSON.parse(inflatedData.eachEntityId);
+    const eachEntityPrimitiveInstancesPortion = inflatedData.eachEntityPrimitiveInstancesPortion;
+    const eachEntityMatricesPortion = inflatedData.eachEntityMatricesPortion;
+
+    const numPrimitives = eachPrimitivePositionsAndNormalsPortion.length;
+    const numPrimitiveInstances = primitiveInstances.length;
+    const primitiveInstanceCounts = new Uint8Array(numPrimitives); // For each mesh, how many times it is instanced
+
+    const numEntities = eachEntityId.length;
+
+    // Count instances of each primitive
+
+    for (let primitiveInstanceIndex = 0; primitiveInstanceIndex < numPrimitiveInstances; primitiveInstanceIndex++) {
+        const primitiveIndex = primitiveInstances[primitiveInstanceIndex];
+        primitiveInstanceCounts[primitiveIndex]++;
+    }
+
+    // Map batched primitives to the entities that will use them
+
+    const batchedPrimitiveEntityIndexes = {};
+
+    for (let entityIndex = 0; entityIndex < numEntities; entityIndex++) {
+
+        const lastEntityIndex = (numEntities - 1);
+        const atLastEntity = (entityIndex === lastEntityIndex);
+        const firstEntityPrimitiveInstanceIndex = eachEntityPrimitiveInstancesPortion [entityIndex];
+        const lastEntityPrimitiveInstanceIndex = atLastEntity ? eachEntityPrimitiveInstancesPortion[lastEntityIndex] : eachEntityPrimitiveInstancesPortion[entityIndex + 1];
+
+        for (let primitiveInstancesIndex = firstEntityPrimitiveInstanceIndex; primitiveInstancesIndex < lastEntityPrimitiveInstanceIndex; primitiveInstancesIndex++) {
+
+            const primitiveIndex = primitiveInstances[primitiveInstancesIndex];
+            const primitiveInstanceCount = primitiveInstanceCounts[primitiveIndex];
+            const isInstancedPrimitive = (primitiveInstanceCount > 1);
+
+            if (!isInstancedPrimitive) {
+                batchedPrimitiveEntityIndexes[primitiveIndex] = entityIndex;
+            }
+        }
+    }
+
+    // Create geometries for instanced primitives and meshes for batched primitives.
+
+    for (let primitiveIndex = 0; primitiveIndex < numPrimitives; primitiveIndex++) {
+
+        const atLastPrimitive = (primitiveIndex === (numPrimitives - 1));
+
+        const primitiveInstanceCount = primitiveInstanceCounts[primitiveIndex];
+        const isInstancedPrimitive = (primitiveInstanceCount > 1);
+
+        const color = decompressColor$4(eachPrimitiveColor.subarray((primitiveIndex * 4), (primitiveIndex * 4) + 3));
+        const opacity = eachPrimitiveColor[(primitiveIndex * 4) + 3] / 255.0;
+
+        const primitivePositions = positions.subarray(eachPrimitivePositionsAndNormalsPortion [primitiveIndex], atLastPrimitive ? positions.length : eachPrimitivePositionsAndNormalsPortion [primitiveIndex + 1]);
+        const primitiveNormals = normals.subarray(eachPrimitivePositionsAndNormalsPortion [primitiveIndex], atLastPrimitive ? normals.length : eachPrimitivePositionsAndNormalsPortion [primitiveIndex + 1]);
+        const primitiveIndices = indices.subarray(eachPrimitiveIndicesPortion [primitiveIndex], atLastPrimitive ? indices.length : eachPrimitiveIndicesPortion [primitiveIndex + 1]);
+        const primitiveEdgeIndices = edgeIndices.subarray(eachPrimitiveEdgeIndicesPortion [primitiveIndex], atLastPrimitive ? edgeIndices.length : eachPrimitiveEdgeIndicesPortion [primitiveIndex + 1]);
+
+        if (isInstancedPrimitive) {
+
+            // Primitive instanced by more than one entity, and has positions in Model-space
+
+            var geometryId = "geometry" + primitiveIndex; // These IDs are local to the PerformanceModel
+
+            performanceModel.createGeometry({
+                id: geometryId,
+                primitive: "triangles",
+                positions: primitivePositions,
+                normals: primitiveNormals,
+                indices: primitiveIndices,
+                edgeIndices: primitiveEdgeIndices
+            });
+
+        } else {
+
+            // Primitive is used only by one entity, and has positions pre-transformed into World-space
+
+            const meshId = primitiveIndex; // These IDs are local to the PerformanceModel
+
+            const entityIndex = batchedPrimitiveEntityIndexes[primitiveIndex];
+            const entityId = eachEntityId[entityIndex];
+
+            const meshDefaults = {}; // TODO: get from lookup from entity IDs
+
+            performanceModel.createMesh(utils.apply(meshDefaults, {
+                id: meshId,
+                primitive: "triangles",
+                positions: primitivePositions,
+                normals: primitiveNormals,
+                indices: primitiveIndices,
+                edgeIndices: primitiveEdgeIndices,
+                color: color,
+                opacity: opacity
+            }));
+        }
+    }
+
+    let countInstances = 0;
+
+    for (let entityIndex = 0; entityIndex < numEntities; entityIndex++) {
+
+        const lastEntityIndex = (numEntities - 1);
+        const atLastEntity = (entityIndex === lastEntityIndex);
+        const entityId = eachEntityId[entityIndex];
+        const firstEntityPrimitiveInstanceIndex = eachEntityPrimitiveInstancesPortion [entityIndex];
+        const lastEntityPrimitiveInstanceIndex = atLastEntity ? eachEntityPrimitiveInstancesPortion[lastEntityIndex] : eachEntityPrimitiveInstancesPortion[entityIndex + 1];
+
+        const meshIds = [];
+
+        for (let primitiveInstancesIndex = firstEntityPrimitiveInstanceIndex; primitiveInstancesIndex < lastEntityPrimitiveInstanceIndex; primitiveInstancesIndex++) {
+
+            const primitiveIndex = primitiveInstances[primitiveInstancesIndex];
+            const primitiveInstanceCount = primitiveInstanceCounts[primitiveIndex];
+            const isInstancedPrimitive = (primitiveInstanceCount > 1);
+
+            if (isInstancedPrimitive) {
+
+                const meshDefaults = {}; // TODO: get from lookup from entity IDs
+
+                const meshId = "instance." + countInstances++;
+                const geometryId = "geometry" + primitiveIndex;
+                const matricesIndex = (eachEntityMatricesPortion [entityIndex]) * 16;
+                const matrix = matrices.subarray(matricesIndex, matricesIndex + 16);
+
+                performanceModel.createMesh(utils.apply(meshDefaults, {
+                    id: meshId,
+                    geometryId: geometryId,
+                    matrix: matrix
+                }));
+
+                meshIds.push(meshId);
+
+            } else {
+                meshIds.push(primitiveIndex);
+            }
+        }
+
+        if (meshIds.length > 0) {
+
+            const entityDefaults = {}; // TODO: get from lookup from entity IDs
+
+            performanceModel.createEntity(utils.apply(entityDefaults, {
+                id: entityId,
+                isObject: true, ///////////////// TODO: If metaobject exists
+                meshIds: meshIds
+            }));
+        }
+    }
+}
+
+const ParserV5 = {
+    version: 5,
+    parse: function (viewer, options, elements, performanceModel) {
+        const deflatedData = extract$4(elements);
+        const inflatedData = inflate$4(deflatedData);
+        load$4(viewer, options, inflatedData, performanceModel);
+    }
+};
+
+const parsers = {};
+
+parsers[ParserV1.version] = ParserV1;
+parsers[ParserV2.version] = ParserV2;
+parsers[ParserV3.version] = ParserV3;
+parsers[ParserV4.version] = ParserV4;
+parsers[ParserV5.version] = ParserV5;
 
 /**
  * {@link Viewer} plugin that loads models from xeokit's optimized *````.xkt````* format.
@@ -41771,12 +43025,11 @@ class XKTLoaderPlugin extends Plugin {
     }
 
     /**
-     * The *````.xkt````* format version supported by this XKTLoaderPlugin.
-     *
-     * @type {Number}
+     * Gets the ````.xkt```` format versions supported by this XKTLoaderPlugin/
+     * @returns {string[]}
      */
-    static get XKTVersion() {
-        return XKT_VERSION;
+    get supportedVersions() {
+        return Object.keys(parsers);
     }
 
     /**
@@ -41909,7 +43162,7 @@ class XKTLoaderPlugin extends Plugin {
     }
 
     /**
-     * Loads a .xkt model into this XKTLoaderPlugin's {@link Viewer}.
+     * Loads an ````.xkt```` model into this XKTLoaderPlugin's {@link Viewer}.
      *
      * @param {*} params Loading parameters.
      * @param {String} [params.id] ID to assign to the root {@link Entity#id}, unique among all components in the Viewer's {@link Scene}, generated automatically by default.
@@ -41938,8 +43191,7 @@ class XKTLoaderPlugin extends Plugin {
         }
 
         const performanceModel = new PerformanceModel(this.viewer.scene, utils.apply(params, {
-            isModel: true,
-            preCompressed: true
+            isModel: true
         }));
 
         const modelId = performanceModel.id;  // In case ID was auto-generated
@@ -41988,7 +43240,6 @@ class XKTLoaderPlugin extends Plugin {
 
                 if (params.src) {
                     this._loadModel(params.src, params, options, performanceModel);
-
                 } else {
                     this._parseModel(params.xkt, params, options, performanceModel);
                 }
@@ -42007,35 +43258,33 @@ class XKTLoaderPlugin extends Plugin {
                     processMetaModelData(metaModelData);
 
                 }, (errMsg) => {
+
                     this.error(`load(): Failed to load model metadata for model '${modelId} from  '${metaModelSrc}' - ${errMsg}`);
+
                     this.viewer.scene.canvas.spinner.processes--;
                 });
 
             } else if (params.metaModelData) {
-
                 processMetaModelData(params.metaModelData);
             }
 
         } else {
-
             if (params.src) {
                 this._loadModel(params.src, params, options, performanceModel);
-
             } else {
                 this._parseModel(params.xkt, params, options, performanceModel);
             }
         }
 
-        performanceModel.once("destroyed", () => {
-            this.viewer.metaScene.destroyMetaModel(modelId);
-        });
-
         return performanceModel;
     }
 
     _loadModel(src, params, options, performanceModel) {
+
         const spinner = this.viewer.scene.canvas.spinner;
+
         spinner.processes++;
+
         this._dataSource.getXKT(params.src, (arrayBuffer) => {
                 this._parseModel(arrayBuffer, params, options, performanceModel);
                 spinner.processes--;
@@ -42048,22 +43297,19 @@ class XKTLoaderPlugin extends Plugin {
     }
 
     _parseModel(arrayBuffer, params, options, performanceModel) {
-        const deflatedData = this._extractData(arrayBuffer);
-        if (!deflatedData) { // Error
-            return;
-        }
-        const inflatedData = this._inflateData(deflatedData);
-        this._loadDataIntoModel(inflatedData, options, performanceModel);
-    }
 
-    _extractData(arrayBuffer) {
         const dataView = new DataView(arrayBuffer);
         const dataArray = new Uint8Array(arrayBuffer);
         const xktVersion = dataView.getUint32(0, true);
-        if (xktVersion > XKT_VERSION) {
-            this.error("Incompatible .XKT file version; this XKTLoaderPlugin supports versions <= V" + XKT_VERSION);
+        const parser = parsers[xktVersion];
+
+        if (!parser) {
+            this.error("Unsupported .XKT file version: " + xktVersion + " - this XKTLoaderPlugin supports versions " + Object.keys(parsers));
             return;
         }
+
+        this.log("Loading .xkt V" + xktVersion);
+
         const numElements = dataView.getUint32(4, true);
         const elements = [];
         let byteOffset = (numElements + 2) * 4;
@@ -42072,479 +43318,8 @@ class XKTLoaderPlugin extends Plugin {
             elements.push(dataArray.subarray(byteOffset, byteOffset + elementSize));
             byteOffset += elementSize;
         }
-        if (xktVersion >= 3) {
-            return { // XKT version 3
-                xktVersion: xktVersion,
-                positions: elements[0],
-                normals: elements[1],
-                indices: elements[2],
-                edgeIndices: elements[3],
-                meshPositions: elements[4],
-                meshIndices: elements[5],
-                meshEdgesIndices: elements[6],
-                meshColors: elements[7],
-                entityIDs: elements[8],
-                entityMeshes: elements[9],
-                entityIsObjects: elements[10],
-                instancedPositionsDecodeMatrix: elements[11],
-                batchedPositionsDecodeMatrix: elements[12],
-                entityMeshIds: elements[13],
-                entityMatrices: elements[14],
-                entityUsesInstancing: elements[15]
-            };
-        }
-        if (xktVersion >= 2) {
-            return { // XKT version 2
-                xktVersion: xktVersion,
-                positions: elements[0],
-                normals: elements[1],
-                indices: elements[2],
-                edgeIndices: elements[3],
-                meshPositions: elements[4],
-                meshIndices: elements[5],
-                meshEdgesIndices: elements[6],
-                meshColors: elements[7],
-                entityIDs: elements[8],
-                entityMeshes: elements[9],
-                entityIsObjects: elements[10],
-                positionsDecodeMatrix: elements[11],
-                entityMeshIds: elements[12],
-                entityMatrices: elements[13],
-                entityUsesInstancing: elements[14]
-            };
-        }
-        return { // XKT version < 2
-            xktVersion: xktVersion,
-            positions: elements[0],
-            normals: elements[1],
-            indices: elements[2],
-            edgeIndices: elements[3],
-            meshPositions: elements[4],
-            meshIndices: elements[5],
-            meshEdgesIndices: elements[6],
-            meshColors: elements[7],
-            entityIDs: elements[8],
-            entityMeshes: elements[9],
-            entityIsObjects: elements[10],
-            positionsDecodeMatrix: elements[11]
-        };
-    }
 
-    _inflateData(deflatedData) {
-        if (deflatedData.xktVersion >= 3) {
-            return { // XKT version 3
-                xktVersion: deflatedData.xktVersion,
-                positions: new Uint16Array(pako.inflate(deflatedData.positions).buffer),
-                normals: new Int8Array(pako.inflate(deflatedData.normals).buffer),
-                indices: new Uint32Array(pako.inflate(deflatedData.indices).buffer),
-                edgeIndices: new Uint32Array(pako.inflate(deflatedData.edgeIndices).buffer),
-                meshPositions: new Uint32Array(pako.inflate(deflatedData.meshPositions).buffer),
-                meshIndices: new Uint32Array(pako.inflate(deflatedData.meshIndices).buffer),
-                meshEdgesIndices: new Uint32Array(pako.inflate(deflatedData.meshEdgesIndices).buffer),
-                meshColors: new Uint8Array(pako.inflate(deflatedData.meshColors).buffer),
-                entityIDs: pako.inflate(deflatedData.entityIDs, {to: 'string'}),
-                entityMeshes: new Uint32Array(pako.inflate(deflatedData.entityMeshes).buffer),
-                entityIsObjects: new Uint8Array(pako.inflate(deflatedData.entityIsObjects).buffer),
-                instancedPositionsDecodeMatrix: new Float32Array(pako.inflate(deflatedData.instancedPositionsDecodeMatrix).buffer),
-                batchedPositionsDecodeMatrix: new Float32Array(pako.inflate(deflatedData.batchedPositionsDecodeMatrix).buffer),
-                entityMeshIds: new Uint32Array(pako.inflate(deflatedData.entityMeshIds).buffer),
-                entityMatrices: new Float32Array(pako.inflate(deflatedData.entityMatrices).buffer),
-                entityUsesInstancing: new Uint8Array(pako.inflate(deflatedData.entityUsesInstancing).buffer)
-            };
-        }
-        if (deflatedData.xktVersion >= 2) {
-            return { // XKT version 2
-                xktVersion: deflatedData.xktVersion,
-                positions: new Uint16Array(pako.inflate(deflatedData.positions).buffer),
-                normals: new Int8Array(pako.inflate(deflatedData.normals).buffer),
-                indices: new Uint32Array(pako.inflate(deflatedData.indices).buffer),
-                edgeIndices: new Uint32Array(pako.inflate(deflatedData.edgeIndices).buffer),
-                meshPositions: new Uint32Array(pako.inflate(deflatedData.meshPositions).buffer),
-                meshIndices: new Uint32Array(pako.inflate(deflatedData.meshIndices).buffer),
-                meshEdgesIndices: new Uint32Array(pako.inflate(deflatedData.meshEdgesIndices).buffer),
-                meshColors: new Uint8Array(pako.inflate(deflatedData.meshColors).buffer),
-                entityIDs: pako.inflate(deflatedData.entityIDs, {to: 'string'}),
-                entityMeshes: new Uint32Array(pako.inflate(deflatedData.entityMeshes).buffer),
-                entityIsObjects: new Uint8Array(pako.inflate(deflatedData.entityIsObjects).buffer),
-                positionsDecodeMatrix: new Float32Array(pako.inflate(deflatedData.positionsDecodeMatrix).buffer),
-                entityMeshIds: new Uint32Array(pako.inflate(deflatedData.entityMeshIds).buffer),
-                entityMatrices: new Float32Array(pako.inflate(deflatedData.entityMatrices).buffer),
-                entityUsesInstancing: new Uint8Array(pako.inflate(deflatedData.entityUsesInstancing).buffer)
-            };
-        }
-        return { // XKT version < 2
-            xktVersion: deflatedData.xktVersion,
-            positions: new Uint16Array(pako.inflate(deflatedData.positions).buffer),
-            normals: new Int8Array(pako.inflate(deflatedData.normals).buffer),
-            indices: new Uint32Array(pako.inflate(deflatedData.indices).buffer),
-            edgeIndices: new Uint32Array(pako.inflate(deflatedData.edgeIndices).buffer),
-            meshPositions: new Uint32Array(pako.inflate(deflatedData.meshPositions).buffer),
-            meshIndices: new Uint32Array(pako.inflate(deflatedData.meshIndices).buffer),
-            meshEdgesIndices: new Uint32Array(pako.inflate(deflatedData.meshEdgesIndices).buffer),
-            meshColors: new Uint8Array(pako.inflate(deflatedData.meshColors).buffer),
-            entityIDs: pako.inflate(deflatedData.entityIDs, {to: 'string'}),
-            entityMeshes: new Uint32Array(pako.inflate(deflatedData.entityMeshes).buffer),
-            entityIsObjects: new Uint8Array(pako.inflate(deflatedData.entityIsObjects).buffer),
-            positionsDecodeMatrix: new Float32Array(pako.inflate(deflatedData.positionsDecodeMatrix).buffer)
-        };
-    }
-
-    _loadDataIntoModel(inflatedData, options, performanceModel) {
-
-        if (inflatedData.xktVersion >= 3) {
-
-            const positions = inflatedData.positions;
-            const normals = inflatedData.normals;
-            const indices = inflatedData.indices;
-            const edgeIndices = inflatedData.edgeIndices;
-            const meshPositions = inflatedData.meshPositions;
-            const meshIndices = inflatedData.meshIndices;
-            const meshEdgesIndices = inflatedData.meshEdgesIndices;
-            const meshColors = inflatedData.meshColors;
-            const entityIDs = JSON.parse(inflatedData.entityIDs);
-            const entityMeshes = inflatedData.entityMeshes;
-            const entityIsObjects = inflatedData.entityIsObjects;
-            const entityMeshIds = inflatedData.entityMeshIds;
-            const entityMatrices = inflatedData.entityMatrices;
-            const entityUsesInstancing = inflatedData.entityUsesInstancing;
-
-            const numMeshes = meshPositions.length;
-            const numEntities = entityMeshes.length;
-
-            const _alreadyCreatedGeometries = {};
-
-            for (let i = 0; i < numEntities; i++) {
-
-                const entityId = entityIDs [i];
-                const metaObject = this.viewer.metaScene.metaObjects[entityId];
-                const entityDefaults = {};
-                const meshDefaults = {};
-                const entityMatrix = entityMatrices.subarray((i * 16), (i * 16) + 16);
-
-                if (metaObject) {
-
-                    if (options.excludeTypesMap && metaObject.type && options.excludeTypesMap[metaObject.type]) {
-                        continue;
-                    }
-
-                    if (options.includeTypesMap && metaObject.type && (!options.includeTypesMap[metaObject.type])) {
-                        continue;
-                    }
-
-                    const props = options.objectDefaults ? options.objectDefaults[metaObject.type || "DEFAULT"] : null;
-
-                    if (props) {
-                        if (props.visible === false) {
-                            entityDefaults.visible = false;
-                        }
-                        if (props.pickable === false) {
-                            entityDefaults.pickable = false;
-                        }
-                        if (props.colorize) {
-                            meshDefaults.color = props.colorize;
-                        }
-                        if (props.opacity !== undefined && props.opacity !== null) {
-                            meshDefaults.opacity = props.opacity;
-                        }
-                    }
-                } else {
-                    if (options.excludeUnclassifiedObjects) {
-                        continue;
-                    }
-                }
-
-                const lastEntity = (i === numEntities - 1);
-
-                const meshIds = [];
-
-                for (let j = entityMeshes [i], jlen = lastEntity ? entityMeshIds.length : entityMeshes [i + 1]; j < jlen; j++) {
-                    var jj = entityMeshIds [j];
-
-                    const lastMesh = (jj === (numMeshes - 1));
-                    const meshId = entityId + ".mesh." + jj;
-
-                    const color = decompressColor(meshColors.subarray((jj * 4), (jj * 4) + 3));
-                    const opacity = meshColors[(jj * 4) + 3] / 255.0;
-
-                    var tmpPositions = positions.subarray(meshPositions [jj], lastMesh ? positions.length : meshPositions [jj + 1]);
-                    var tmpNormals = normals.subarray(meshPositions [jj], lastMesh ? positions.length : meshPositions [jj + 1]);
-                    var tmpIndices = indices.subarray(meshIndices [jj], lastMesh ? indices.length : meshIndices [jj + 1]);
-                    var tmpEdgeIndices = edgeIndices.subarray(meshEdgesIndices [jj], lastMesh ? edgeIndices.length : meshEdgesIndices [jj + 1]);
-
-                    if (entityUsesInstancing [i] === 1) {
-                        var geometryId = "geometry." + jj;
-
-                        if (!(geometryId in _alreadyCreatedGeometries)) {
-
-                            performanceModel.createGeometry({
-                                id: geometryId,
-                                positions: tmpPositions,
-                                normals: tmpNormals,
-                                indices: tmpIndices,
-                                edgeIndices: tmpEdgeIndices,
-                                primitive: "triangles",
-                                positionsDecodeMatrix: inflatedData.instancedPositionsDecodeMatrix
-                            });
-
-                            _alreadyCreatedGeometries [geometryId] = true;
-                        }
-
-                        performanceModel.createMesh(utils.apply(meshDefaults, {
-                            id: meshId,
-                            color: color,
-                            opacity: opacity,
-                            matrix: entityMatrix,
-                            geometryId: geometryId,
-                        }));
-
-                        meshIds.push(meshId);
-                    } else {
-                        performanceModel.createMesh(utils.apply(meshDefaults, {
-                            id: meshId,
-                            primitive: "triangles",
-                            positions: tmpPositions,
-                            normals: tmpNormals,
-                            indices: tmpIndices,
-                            edgeIndices: tmpEdgeIndices,
-                            positionsDecodeMatrix: inflatedData.batchedPositionsDecodeMatrix,
-                            color: color,
-                            opacity: opacity
-                        }));
-
-                        meshIds.push(meshId);
-                    }
-                }
-
-                if (meshIds.length) {
-                    performanceModel.createEntity(utils.apply(entityDefaults, {
-                        id: entityId,
-                        isObject: (entityIsObjects [i] === 1),
-                        meshIds: meshIds
-                    }));
-                }
-            }
-
-        } else if (inflatedData.xktVersion >= 2) {
-
-            const positions = inflatedData.positions;
-            const normals = inflatedData.normals;
-            const indices = inflatedData.indices;
-            const edgeIndices = inflatedData.edgeIndices;
-            const meshPositions = inflatedData.meshPositions;
-            const meshIndices = inflatedData.meshIndices;
-            const meshEdgesIndices = inflatedData.meshEdgesIndices;
-            const meshColors = inflatedData.meshColors;
-            const entityIDs = JSON.parse(inflatedData.entityIDs);
-            const entityMeshes = inflatedData.entityMeshes;
-            const entityIsObjects = inflatedData.entityIsObjects;
-            const entityMeshIds = inflatedData.entityMeshIds;
-            const entityMatrices = inflatedData.entityMatrices;
-            const entityUsesInstancing = inflatedData.entityUsesInstancing;
-
-            const numMeshes = meshPositions.length;
-            const numEntities = entityMeshes.length;
-
-            const _alreadyCreatedGeometries = {};
-
-            for (let i = 0; i < numEntities; i++) {
-
-                const entityId = entityIDs [i];
-                const metaObject = this.viewer.metaScene.metaObjects[entityId];
-                const entityDefaults = {};
-                const meshDefaults = {};
-                const entityMatrix = entityMatrices.subarray((i * 16), (i * 16) + 16);
-
-                if (metaObject) {
-
-                    if (options.excludeTypesMap && metaObject.type && options.excludeTypesMap[metaObject.type]) {
-                        continue;
-                    }
-
-                    if (options.includeTypesMap && metaObject.type && (!options.includeTypesMap[metaObject.type])) {
-                        continue;
-                    }
-
-                    const props = options.objectDefaults ? options.objectDefaults[metaObject.type || "DEFAULT"] : null;
-
-                    if (props) {
-                        if (props.visible === false) {
-                            entityDefaults.visible = false;
-                        }
-                        if (props.pickable === false) {
-                            entityDefaults.pickable = false;
-                        }
-                        if (props.colorize) {
-                            meshDefaults.color = props.colorize;
-                        }
-                        if (props.opacity !== undefined && props.opacity !== null) {
-                            meshDefaults.opacity = props.opacity;
-                        }
-                    }
-                } else {
-                    if (options.excludeUnclassifiedObjects) {
-                        continue;
-                    }
-                }
-
-                const lastEntity = (i === numEntities - 1);
-
-                const meshIds = [];
-
-                for (let j = entityMeshes [i], jlen = lastEntity ? entityMeshIds.length : entityMeshes [i + 1]; j < jlen; j++) {
-                    var jj = entityMeshIds [j];
-
-                    const lastMesh = (jj === (numMeshes - 1));
-                    const meshId = entityId + ".mesh." + jj;
-
-                    const color = decompressColor(meshColors.subarray((jj * 4), (jj * 4) + 3));
-                    const opacity = meshColors[(jj * 4) + 3] / 255.0;
-
-                    var tmpPositions = positions.subarray(meshPositions [jj], lastMesh ? positions.length : meshPositions [jj + 1]);
-                    var tmpNormals = normals.subarray(meshPositions [jj], lastMesh ? positions.length : meshPositions [jj + 1]);
-                    var tmpIndices = indices.subarray(meshIndices [jj], lastMesh ? indices.length : meshIndices [jj + 1]);
-                    var tmpEdgeIndices = edgeIndices.subarray(meshEdgesIndices [jj], lastMesh ? edgeIndices.length : meshEdgesIndices [jj + 1]);
-
-                    if (entityUsesInstancing [i] === 1) {
-                        var geometryId = "geometry." + jj;
-
-                        if (!(geometryId in _alreadyCreatedGeometries)) {
-
-                            performanceModel.createGeometry({
-                                id: geometryId,
-                                positions: tmpPositions,
-                                normals: tmpNormals,
-                                indices: tmpIndices,
-                                edgeIndices: tmpEdgeIndices,
-                                primitive: "triangles",
-                                positionsDecodeMatrix: inflatedData.positionsDecodeMatrix,
-                            });
-
-                            _alreadyCreatedGeometries [geometryId] = true;
-                        }
-
-                        performanceModel.createMesh(utils.apply(meshDefaults, {
-                            id: meshId,
-                            color: color,
-                            opacity: opacity,
-                            matrix: entityMatrix,
-                            geometryId: geometryId,
-                        }));
-
-                        meshIds.push(meshId);
-                    } else {
-                        performanceModel.createMesh(utils.apply(meshDefaults, {
-                            id: meshId,
-                            primitive: "triangles",
-                            positions: tmpPositions,
-                            normals: tmpNormals,
-                            indices: tmpIndices,
-                            edgeIndices: tmpEdgeIndices,
-                            positionsDecodeMatrix: inflatedData.positionsDecodeMatrix,
-                            color: color,
-                            opacity: opacity
-                        }));
-
-                        meshIds.push(meshId);
-                    }
-                }
-
-                if (meshIds.length) {
-                    performanceModel.createEntity(utils.apply(entityDefaults, {
-                        id: entityId,
-                        isObject: (entityIsObjects [i] === 1),
-                        meshIds: meshIds
-                    }));
-                }
-            }
-
-        } else { // XKT version <= 2
-
-            const positions = inflatedData.positions;
-            const normals = inflatedData.normals;
-            const indices = inflatedData.indices;
-            const edgeIndices = inflatedData.edgeIndices;
-            const meshPositions = inflatedData.meshPositions;
-            const meshIndices = inflatedData.meshIndices;
-            const meshEdgesIndices = inflatedData.meshEdgesIndices;
-            const meshColors = inflatedData.meshColors;
-            const entityIDs = JSON.parse(inflatedData.entityIDs);
-            const entityMeshes = inflatedData.entityMeshes;
-            const entityIsObjects = inflatedData.entityIsObjects;
-            const numMeshes = meshPositions.length;
-            const numEntities = entityMeshes.length;
-
-            for (let i = 0; i < numEntities; i++) {
-
-                const entityId = entityIDs [i];
-                const metaObject = this.viewer.metaScene.metaObjects[entityId];
-                const entityDefaults = {};
-                const meshDefaults = {};
-
-                if (metaObject) {
-
-                    if (options.excludeTypesMap && metaObject.type && options.excludeTypesMap[metaObject.type]) {
-                        continue;
-                    }
-
-                    if (options.includeTypesMap && metaObject.type && (!options.includeTypesMap[metaObject.type])) {
-                        continue;
-                    }
-
-                    const props = options.objectDefaults ? options.objectDefaults[metaObject.type || "DEFAULT"] : null;
-
-                    if (props) {
-                        if (props.visible === false) {
-                            entityDefaults.visible = false;
-                        }
-                        if (props.pickable === false) {
-                            entityDefaults.pickable = false;
-                        }
-                        if (props.colorize) {
-                            meshDefaults.color = props.colorize;
-                        }
-                        if (props.opacity !== undefined && props.opacity !== null) {
-                            meshDefaults.opacity = props.opacity;
-                        }
-                    }
-                } else {
-                    if (options.excludeUnclassifiedObjects) {
-                        continue;
-                    }
-                }
-
-                const lastEntity = (i === numEntities - 1);
-                const meshIds = [];
-
-                for (let j = entityMeshes [i], jlen = lastEntity ? entityMeshes.length : entityMeshes [i + 1]; j < jlen; j++) {
-
-                    const lastMesh = (j === (numMeshes - 1));
-                    const meshId = entityId + ".mesh." + j;
-
-                    const color = decompressColor(meshColors.subarray((j * 4), (j * 4) + 3));
-                    const opacity = meshColors[(j * 4) + 3] / 255.0;
-
-                    performanceModel.createMesh(utils.apply(meshDefaults, {
-                        id: meshId,
-                        primitive: "triangles",
-                        positions: positions.subarray(meshPositions [j], lastMesh ? positions.length : meshPositions [j + 1]),
-                        normals: normals.subarray(meshPositions [j], lastMesh ? positions.length : meshPositions [j + 1]),
-                        indices: indices.subarray(meshIndices [j], lastMesh ? indices.length : meshIndices [j + 1]),
-                        edgeIndices: edgeIndices.subarray(meshEdgesIndices [j], lastMesh ? edgeIndices.length : meshEdgesIndices [j + 1]),
-                        positionsDecodeMatrix: inflatedData.positionsDecodeMatrix,
-                        color: color,
-                        opacity: opacity
-                    }));
-
-                    meshIds.push(meshId);
-                }
-
-                performanceModel.createEntity(utils.apply(entityDefaults, {
-                    id: entityId,
-                    isObject: (entityIsObjects [i] === 1),
-                    meshIds: meshIds
-                }));
-            }
-        }
+        parser.parse(this.viewer, options, elements, performanceModel);
 
         performanceModel.finalize();
 
