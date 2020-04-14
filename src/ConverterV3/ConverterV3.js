@@ -1,8 +1,11 @@
 /**
- * Converts glTF 2 to .XKT format V3.
- *
- * Replaces V1 and V2.
- *
+
+ Converts glTF 2 to .XKT format V3.
+
+ Features geometry reuse, oct-encoded normals and quantized positions.
+
+ See .XKT V3 specification: https://github.com/xeokit/xeokit-sdk/wiki/XKT-Format-V3
+
  */
 const fs = require('fs');
 
@@ -11,7 +14,7 @@ const modelToXKT = require('./modelToXKT');
 
 module.exports = {
     version: 3,
-    desc: "Geometry reuse;Oct-encoded normals; Quantized positions; RECOMMENDED",
+    desc: "Geometry reuse; Oct-encoded normals; Quantized positions; RECOMMENDED",
     convert: async function convert(gltfPath, xktPath) {
         const content = await readGltf(gltfPath);
         const gltf = JSON.parse(content);

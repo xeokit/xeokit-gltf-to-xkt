@@ -2,19 +2,11 @@
 
  Converts glTF 2 to .XKT format V5.
 
- Experimental.
+ Features geometry reuse, oct-encoded normals and 32-bit floating-point positions.
 
- Designed for accurate geometry.
+ EXPERIMENTAL
 
- XKT V5 is designed for maximum geometry accuracy for a s
-
- XKT V5 features:
-
- - geometry arrays (positions, normals, indices, edgeIndices)
- - an array of modeling matrices
- - a list of primitives, each of which owns a portion of the geometry arrays
- - entities, each of which has a modeling matrix and a portion of the primitives, and can share primitives portions with other entities
- - floating point geometry positions (and therefore no positions decode matrices)
+ See .XKT V5 specification: https://github.com/xeokit/xeokit-sdk/wiki/XKT-Format-V5
 
  */
 const fs = require('fs');

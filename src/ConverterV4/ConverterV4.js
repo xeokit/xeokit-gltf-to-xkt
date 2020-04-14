@@ -2,39 +2,15 @@
 
  Converts glTF 2 to .XKT format V4.
 
- Experimental.
+ Features geometry reuse, oct-encoded normals, uantized positions, and positions quantized in partitions.
 
- Designed for accurate geometry and minimal size for geographically large models with fine details.
+ Designed for accurate geometry and minimal size for geographically large models with fine details. An example of such a
+ model would be a long street with a building at each end, with each building having many small elements, such as
+ electrical fittings etc.
 
- An example of such a model would be a long street with a building at each end, with each building having many small
- elements, such as electrical fittings etc.
+ EXPERIMENTAL
 
- To achieve minimal file size, V4 quantizes geometry positions to unsigned 16-bit integers. The positions in such a
- model would not retain acceptable precision if they were all quantized collectively into the same unsigned 16-bit
- integer range. Therefore, V4 subdivides the positions into portions, and quantizes each portion separately to the
- full 16-bit unsigned integer range. Each portion has its own decode matrix, to de-quantize its positions back
- to 32-bit floats, independently of the other portions.
-
- V4 holds geometry in a single set of positions, normals, indices and edgeIndices arrays.
-
- Each primitive owns a portion of the geometry arrays.
-
- Each primitive is owned by one or more entities.
-
- An entity can own multiple primitives.
-
- When a primitive is owned by exactly one entity, then its geometry positions are in World-space.
-
- When a primitive is owned by multiple entities ("instanced"), then its positions are in Model-space. The entities
- that own it will then each have a matrix to transform the primitive's positions into World-space for that entity.
-
- If an entity owns some primitives, and shares those primitives with other entities, then it shares that complete set
- of primitives, as a unit, with the other entities.
-
- An entity that does not share its primitives with other entities has an identity modeling matrix, which is effectively
- a null matrix, since the primitives positions are already in World-space and the matrix is not needed.
-
- Entities can share modeling matrices with other entities.
+ See .XKT V4 specification: https://github.com/xeokit/xeokit-sdk/wiki/XKT-Format-V4
 
  */
 
