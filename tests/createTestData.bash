@@ -1,3 +1,9 @@
+# Generates test XKT files in ./models/xkt, which can be viewed with ./index.html
+
+# V1
+
+node ../gltf2xkt -f 1 -s models/gltf/schependomlaan/schependomlaan.gltf -o models/xkt/v1_schependomlaan.xkt
+
 node ../gltf2xkt -f 1 -s models/gltf/WestRiverSideHospital/electrical.gltf -o models/xkt/v1_WestRiverSideHospital_electrical.xkt
 node ../gltf2xkt -f 1 -s models/gltf/WestRiverSideHospital/fireAlarms.gltf -o models/xkt/v1_WestRiverSideHospital_fireAlarms.xkt
 node ../gltf2xkt -f 1 -s models/gltf/WestRiverSideHospital/plumbing.gltf -o models/xkt/v1_WestRiverSideHospital_plumbing.xkt
@@ -5,7 +11,6 @@ node ../gltf2xkt -f 1 -s models/gltf/WestRiverSideHospital/sprinklers.gltf -o mo
 node ../gltf2xkt -f 1 -s models/gltf/WestRiverSideHospital/structure.gltf -o models/xkt/v1_WestRiverSideHospital_structure.xkt
 node ../gltf2xkt -f 1 -s models/gltf/WestRiverSideHospital/architecture.gltf -o models/xkt/v1_WestRiverSideHospital_architecture.xkt
 node ../gltf2xkt -f 1 -s models/gltf/WestRiverSideHospital/mechanical.gltf -o models/xkt/v1_WestRiverSideHospital_mechanical.xkt
-
 
 # V2
 
