@@ -4,8 +4,8 @@
   "description": "xeokit examples to test xeokit-gltf-to-xkt",
   "main": "index.js",
   "scripts": {
-    "build-tests": "rollup -c",
-    "build-xkt": "bash createTestData.bash"
+    "build": "rollup -c",
+    "convert": "bash convert.bash"
   },
   "author": "Lindsay Kay",
   "license": "ISC",

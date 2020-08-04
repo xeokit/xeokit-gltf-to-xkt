@@ -236,7 +236,6 @@ function toArrayBuffer(elements) {
     indexData [1] = elements.length;  // Stored Data 1.1: number of stored elements
     let dataLen = 0;    // Stored Data 1.2: length of stored elements
     for (let i = 0, len = elements.length; i < len; i++) {
-        console.log(i);
         const element = elements[i];
         const elementsize = element.length;
         indexData[i + 2] = elementsize;

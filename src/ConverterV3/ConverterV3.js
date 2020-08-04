@@ -46,7 +46,7 @@ function getBasePath(src) {
 function writeXkt(xktPath, model) {
     return new Promise((resolve, reject) => {
         const arrayBuffer = modelToXKT(model);
-        console.log("Writing XKT file " + xktPath);
+        console.log("Writing XKT file: " + xktPath);
         fs.writeFile(xktPath, Buffer.from(arrayBuffer), (error) => {
             if (error !== null) {
                 console.error(`Unable to write to file at path: ${xktPath}`);

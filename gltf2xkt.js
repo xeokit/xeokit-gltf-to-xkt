@@ -61,7 +61,9 @@ if (format !== undefined) {
     }
 }
 
-console.log('\n\nWriting XKT format ' + converter.version + '.');
+console.log('\n\nReading glTF file: ' + program.source);
+
+console.log('Converting to XKT format: ' + converter.version);
 
 converter
     .convert(program.source, program.output)
