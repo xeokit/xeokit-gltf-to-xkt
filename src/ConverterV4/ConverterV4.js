@@ -2,7 +2,7 @@
 
  Converts glTF 2 to .XKT format V4.
 
- Features geometry reuse, oct-encoded normals, uantized positions, and positions quantized in partitions.
+ Features geometry reuse, oct-encoded normals, quantized positions, and positions quantized in partitions.
 
  Designed for accurate geometry and minimal size for geographically large models with fine details. An example of such a
  model would be a long street with a building at each end, with each building having many small elements, such as
