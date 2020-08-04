@@ -1019,6 +1019,24 @@ const math = {
     },
 
     /**
+     * Negates a three-element vector.
+     * @method negateVec3
+     * @static
+     * @param {Array(Number)} v Vector to negate
+     * @param  {Array(Number)} [dest] Destination vector
+     * @return {Array(Number)} dest if specified, v otherwise
+     */
+    negateVec3(v, dest) {
+        if (!dest) {
+            dest = v;
+        }
+        dest[0] = -v[0];
+        dest[1] = -v[1];
+        dest[2] = -v[2];
+        return dest;
+    },
+
+    /**
      * Negates a four-element vector.
      * @method negateVec4
      * @static
@@ -2858,6 +2876,20 @@ const math = {
 
     })(),
 
+    /** @private */
+    getColMat4(mat, c) {
+        const i = c * 4;
+        return [mat[i], mat[i + 1], mat[i + 2], mat[i + 3]];
+    },
+
+    /** @private */
+    setRowMat4(mat, r, v) {
+        mat[r] = v[0];
+        mat[r + 4] = v[1];
+        mat[r + 8] = v[2];
+        mat[r + 12] = v[3];
+    },
+
     /**
      * Returns a 4x4 'lookat' viewing transform matrix.
      * @method lookAtMat4v
@@ -3994,6 +4026,20 @@ const math = {
 
         return p2;
     },
+
+    /** Returns true if the first AABB contains the second AABB.
+     * @param aabb1
+     * @param aabb2
+     * @returns {boolean}
+     */
+    containsAABB3: function (aabb1, aabb2) {
+        const result = (
+            aabb1[0] <= aabb2[0] && aabb2[3] <= aabb1[3] &&
+            aabb1[1] <= aabb2[1] && aabb2[4] <= aabb1[4] &&
+            aabb1[2] <= aabb2[2] && aabb2[5] <= aabb1[5]);
+        return result;
+    },
+
 
     /**
      * Gets the diagonal size of an AABB3 given as minima and maxima.
@@ -5985,6 +6031,7 @@ math.buildEdgeIndices = (function () {
  *
  * We can then find those components like this:
  *
+ * ````javascript
  * // Find the Material
  * var material = viewer.scene.components["myMaterial"];
  *
@@ -5994,6 +6041,20 @@ math.buildEdgeIndices = (function () {
  * // Find our Material within the PhongMaterials
  * var materialAgain = phongMaterials["myMaterial"];
  * ````
+ *
+ * ## Restriction on IDs
+ *
+ * Auto-generated IDs are of the form ````"__0"````, ````"__1"````, ````"__2"```` ... and so on.
+ *
+ * Scene maintains a map of these IDs, along with a counter that it increments each time it generates a new ID.
+ *
+ * If Scene has created the IDs listed above, and we then destroy the ````Component```` with ID ````"__1"````,
+ * Scene will mark that ID as available, and will reuse it for the next default ID.
+ *
+ * Therefore, two restrictions your on IDs:
+ *
+ * * don't use IDs that begin with two underscores, and
+ * * don't reuse auto-generated IDs of destroyed Components.
  *
  * ## Logging
  *
@@ -6095,6 +6156,7 @@ class Component {
          @type Object
          */
         this.meta = cfg.meta || {};
+
 
         /**
          * ID of this Component, unique within the {@link Scene}.
@@ -6817,202 +6879,6 @@ class Component {
     }
 }
 
-/*
- * Canvas2Image v0.1
- * Copyright (c) 2008 Jacob Seidelin, cupboy@gmail.com
- * MIT License [http://www.opensource.org/licenses/mit-license.php]
- */
-
-/**
- * @private
- */
-const Canvas2Image = (function () {
-    // check if we have canvas support
-    const oCanvas = document.createElement("canvas"), sc = String.fromCharCode;
-
-    // no canvas, bail out.
-    if (!oCanvas.getContext) {
-        return {
-            saveAsBMP: function () {
-            },
-            saveAsPNG: function () {
-            },
-            saveAsJPEG: function () {
-            }
-        }
-    }
-
-    const bHasImageData = !!(oCanvas.getContext("2d").getImageData), bHasDataURL = !!(oCanvas.toDataURL), bHasBase64 = !!(window.btoa);
-
-    // ok, we're good
-    const readCanvasData = function (oCanvas) {
-        const iWidth = parseInt(oCanvas.width), iHeight = parseInt(oCanvas.height);
-        return oCanvas.getContext("2d").getImageData(0, 0, iWidth, iHeight);
-    };
-
-    // base64 encodes either a string or an array of charcodes
-    const encodeData = function (data) {
-        let i, aData, strData = "";
-
-        if (typeof data == "string") {
-            strData = data;
-        } else {
-            aData = data;
-            for (i = 0; i < aData.length; i++) {
-                strData += sc(aData[i]);
-            }
-        }
-        return btoa(strData);
-    };
-
-    // creates a base64 encoded string containing BMP data takes an imagedata object as argument
-    const createBMP = function (oData) {
-        let strHeader = '';
-        const iWidth = oData.width;
-        const iHeight = oData.height;
-
-        strHeader += 'BM';
-
-        let iFileSize = iWidth * iHeight * 4 + 54; // total header size = 54 bytes
-        strHeader += sc(iFileSize % 256);
-        iFileSize = Math.floor(iFileSize / 256);
-        strHeader += sc(iFileSize % 256);
-        iFileSize = Math.floor(iFileSize / 256);
-        strHeader += sc(iFileSize % 256);
-        iFileSize = Math.floor(iFileSize / 256);
-        strHeader += sc(iFileSize % 256);
-
-        strHeader += sc(0, 0, 0, 0, 54, 0, 0, 0); // data offset
-        strHeader += sc(40, 0, 0, 0); // info header size
-
-        let iImageWidth = iWidth;
-        strHeader += sc(iImageWidth % 256);
-        iImageWidth = Math.floor(iImageWidth / 256);
-        strHeader += sc(iImageWidth % 256);
-        iImageWidth = Math.floor(iImageWidth / 256);
-        strHeader += sc(iImageWidth % 256);
-        iImageWidth = Math.floor(iImageWidth / 256);
-        strHeader += sc(iImageWidth % 256);
-
-        let iImageHeight = iHeight;
-        strHeader += sc(iImageHeight % 256);
-        iImageHeight = Math.floor(iImageHeight / 256);
-        strHeader += sc(iImageHeight % 256);
-        iImageHeight = Math.floor(iImageHeight / 256);
-        strHeader += sc(iImageHeight % 256);
-        iImageHeight = Math.floor(iImageHeight / 256);
-        strHeader += sc(iImageHeight % 256);
-
-        strHeader += sc(1, 0, 32, 0); // num of planes & num of bits per pixel
-        strHeader += sc(0, 0, 0, 0); // compression = none
-
-        let iDataSize = iWidth * iHeight * 4;
-        strHeader += sc(iDataSize % 256);
-        iDataSize = Math.floor(iDataSize / 256);
-        strHeader += sc(iDataSize % 256);
-        iDataSize = Math.floor(iDataSize / 256);
-        strHeader += sc(iDataSize % 256);
-        iDataSize = Math.floor(iDataSize / 256);
-        strHeader += sc(iDataSize % 256);
-
-        strHeader += sc(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); // these bytes are not used
-
-        const aImgData = oData.data;
-        let strPixelData = "";
-        let x;
-        let y = iHeight;
-        let iOffsetX;
-        let iOffsetY;
-        let strPixelRow;
-
-        do {
-            iOffsetY = iWidth * (y - 1) * 4;
-            strPixelRow = "";
-            for (x = 0; x < iWidth; x++) {
-                iOffsetX = 4 * x;
-                strPixelRow += sc(
-                    aImgData[iOffsetY + iOffsetX + 2], // B
-                    aImgData[iOffsetY + iOffsetX + 1], // G
-                    aImgData[iOffsetY + iOffsetX],     // R
-                    aImgData[iOffsetY + iOffsetX + 3]  // A
-                );
-            }
-            strPixelData += strPixelRow;
-        } while (--y);
-
-        return encodeData(strHeader + strPixelData);
-    };
-
-    // sends the generated file to the client
-    const saveFile = function (strData) {
-        if (!window.open(strData)) {
-            document.location.href = strData;
-        }
-    };
-
-    const makeDataURI = function (strData, strMime) {
-        return "data:" + strMime + ";base64," + strData;
-    };
-
-    // generates a <img> object containing the imagedata
-    const makeImageObject = function (strSource) {
-        const oImgElement = document.createElement("img");
-        oImgElement.src = strSource;
-        return oImgElement;
-    };
-
-    const scaleCanvas = function (oCanvas, iWidth, iHeight) {
-        if (iWidth && iHeight) {
-            const oSaveCanvas = document.createElement("canvas");
-            oSaveCanvas.width = iWidth;
-            oSaveCanvas.height = iHeight;
-            oSaveCanvas.style.width = iWidth + "px";
-            oSaveCanvas.style.height = iHeight + "px";
-            const oSaveCtx = oSaveCanvas.getContext("2d");
-            oSaveCtx.drawImage(oCanvas, 0, 0, oCanvas.width, oCanvas.height, 0, 0, iWidth, iHeight);
-            return oSaveCanvas;
-        }
-        return oCanvas;
-    };
-
-    return {
-        saveAsPNG: function (oCanvas, bReturnImg, iWidth, iHeight) {
-            if (!bHasDataURL) return false;
-            const oScaledCanvas = scaleCanvas(oCanvas, iWidth, iHeight), strMime = "image/png", strData = oScaledCanvas.toDataURL(strMime);
-            if (bReturnImg) {
-                return makeImageObject(strData);
-            } else {
-                saveFile( strData);
-            }
-            return true;
-        },
-
-        saveAsJPEG: function (oCanvas, bReturnImg, iWidth, iHeight) {
-            if (!bHasDataURL) return false;
-            const oScaledCanvas = scaleCanvas(oCanvas, iWidth, iHeight), strMime = "image/jpeg", strData = oScaledCanvas.toDataURL(strMime);
-            // check if browser actually supports jpeg by looking for the mime type in the data uri. if not, return false
-            if (strData.indexOf(strMime) != 5) return false;
-            if (bReturnImg) {
-                return makeImageObject(strData);
-            } else {
-                saveFile( strData);
-            }
-            return true;
-        },
-
-        saveAsBMP: function (oCanvas, bReturnImg, iWidth, iHeight) {
-            if (!(bHasDataURL && bHasImageData && bHasBase64)) return false;
-            const oScaledCanvas = scaleCanvas(oCanvas, iWidth, iHeight), strMime = "image/bmp", oData = readCanvasData(oScaledCanvas), strImgData = createBMP(oData);
-            if (bReturnImg) {
-                return makeImageObject(makeDataURI(strImgData, strMime));
-            } else {
-                saveFile(makeDataURI(strImgData, strMime));
-            }
-            return true;
-        }
-    };
-})();
-
 const defaultCSS = ".sk-fading-circle {\
         background: transparent;\
         margin: 20px auto;\
@@ -7730,37 +7596,6 @@ class Canvas extends Component {
     }
 
     /**
-     * Called by Viewer#getSnapshot
-     * @private
-     * @param params
-     * @returns {*}
-     * @private
-     */
-    _getSnapshot(params) {
-        params = params || {};
-        const width = params.width || this.canvas.width;
-        const height = params.height || this.canvas.height;
-        const format = params.format || "jpeg";
-        let image;
-        switch (format) {
-            case "jpeg":
-                image = Canvas2Image.saveAsJPEG(this.canvas, true, width, height);
-                break;
-            case "png":
-                image = Canvas2Image.saveAsPNG(this.canvas, true, width, height);
-                break;
-            case "bmp":
-                image = Canvas2Image.saveAsBMP(this.canvas, true, width, height);
-                break;
-            default:
-                this.error("Unsupported snapshot format: '" + format
-                    + "' - supported types are 'jpeg', 'bmp' and 'png' - defaulting to 'jpeg'");
-                image = Canvas2Image.saveAsJPEG(this.canvas, true, width, height);
-        }
-        return image.src;
-    }
-
-    /**
      * Reads colors of pixels from the last rendered frame.
      *
      * Call this method like this:
@@ -7812,7 +7647,6 @@ class Canvas extends Component {
         // Memory leak avoidance
         this.canvas.removeEventListener("webglcontextlost", this._webglcontextlostListener);
         this.canvas.removeEventListener("webglcontextrestored", this._webglcontextrestoredListener);
-        this.canvas = null;
         this.gl = null;
         super.destroy();
     }
@@ -8116,6 +7950,221 @@ class RenderFlags {
     }
 }
 
+/*
+ * Canvas2Image v0.1
+ * Copyright (c) 2008 Jacob Seidelin, cupboy@gmail.com
+ * MIT License [http://www.opensource.org/licenses/mit-license.php]
+ *
+ * Modified by @xeolabs to permit vertical flipping, so that snapshot can be taken from WebGL frame buffers,
+ * which vertically flip image data as part of the way that WebGL renders textures.
+ */
+
+/**
+ * @private
+ */
+const Canvas2Image = (function () {
+    // check if we have canvas support
+    const oCanvas = document.createElement("canvas"), sc = String.fromCharCode;
+
+    // no canvas, bail out.
+    if (!oCanvas.getContext) {
+        return {
+            saveAsBMP: function () {
+            },
+            saveAsPNG: function () {
+            },
+            saveAsJPEG: function () {
+            }
+        }
+    }
+
+    const bHasImageData = !!(oCanvas.getContext("2d").getImageData), bHasDataURL = !!(oCanvas.toDataURL),
+        bHasBase64 = !!(window.btoa);
+
+    // ok, we're good
+    const readCanvasData = function (oCanvas) {
+        const iWidth = parseInt(oCanvas.width), iHeight = parseInt(oCanvas.height);
+        return oCanvas.getContext("2d").getImageData(0, 0, iWidth, iHeight);
+    };
+
+    // base64 encodes either a string or an array of charcodes
+    const encodeData = function (data) {
+        let i, aData, strData = "";
+
+        if (typeof data == "string") {
+            strData = data;
+        } else {
+            aData = data;
+            for (i = 0; i < aData.length; i++) {
+                strData += sc(aData[i]);
+            }
+        }
+        return btoa(strData);
+    };
+
+    // creates a base64 encoded string containing BMP data takes an imagedata object as argument
+    const createBMP = function (oData) {
+        let strHeader = '';
+        const iWidth = oData.width;
+        const iHeight = oData.height;
+
+        strHeader += 'BM';
+
+        let iFileSize = iWidth * iHeight * 4 + 54; // total header size = 54 bytes
+        strHeader += sc(iFileSize % 256);
+        iFileSize = Math.floor(iFileSize / 256);
+        strHeader += sc(iFileSize % 256);
+        iFileSize = Math.floor(iFileSize / 256);
+        strHeader += sc(iFileSize % 256);
+        iFileSize = Math.floor(iFileSize / 256);
+        strHeader += sc(iFileSize % 256);
+
+        strHeader += sc(0, 0, 0, 0, 54, 0, 0, 0); // data offset
+        strHeader += sc(40, 0, 0, 0); // info header size
+
+        let iImageWidth = iWidth;
+        strHeader += sc(iImageWidth % 256);
+        iImageWidth = Math.floor(iImageWidth / 256);
+        strHeader += sc(iImageWidth % 256);
+        iImageWidth = Math.floor(iImageWidth / 256);
+        strHeader += sc(iImageWidth % 256);
+        iImageWidth = Math.floor(iImageWidth / 256);
+        strHeader += sc(iImageWidth % 256);
+
+        let iImageHeight = iHeight;
+        strHeader += sc(iImageHeight % 256);
+        iImageHeight = Math.floor(iImageHeight / 256);
+        strHeader += sc(iImageHeight % 256);
+        iImageHeight = Math.floor(iImageHeight / 256);
+        strHeader += sc(iImageHeight % 256);
+        iImageHeight = Math.floor(iImageHeight / 256);
+        strHeader += sc(iImageHeight % 256);
+
+        strHeader += sc(1, 0, 32, 0); // num of planes & num of bits per pixel
+        strHeader += sc(0, 0, 0, 0); // compression = none
+
+        let iDataSize = iWidth * iHeight * 4;
+        strHeader += sc(iDataSize % 256);
+        iDataSize = Math.floor(iDataSize / 256);
+        strHeader += sc(iDataSize % 256);
+        iDataSize = Math.floor(iDataSize / 256);
+        strHeader += sc(iDataSize % 256);
+        iDataSize = Math.floor(iDataSize / 256);
+        strHeader += sc(iDataSize % 256);
+
+        strHeader += sc(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); // these bytes are not used
+
+        const aImgData = oData.data;
+        let strPixelData = "";
+        let x;
+        let y = iHeight;
+        let iOffsetX;
+        let iOffsetY;
+        let strPixelRow;
+
+        do {
+            iOffsetY = iWidth * (y - 1) * 4;
+            strPixelRow = "";
+            for (x = 0; x < iWidth; x++) {
+                iOffsetX = 4 * x;
+                strPixelRow += sc(
+                    aImgData[iOffsetY + iOffsetX + 2], // B
+                    aImgData[iOffsetY + iOffsetX + 1], // G
+                    aImgData[iOffsetY + iOffsetX],     // R
+                    aImgData[iOffsetY + iOffsetX + 3]  // A
+                );
+            }
+            strPixelData += strPixelRow;
+        } while (--y);
+
+        return encodeData(strHeader + strPixelData);
+    };
+
+    // sends the generated file to the client
+    const saveFile = function (strData) {
+        if (!window.open(strData)) {
+            document.location.href = strData;
+        }
+    };
+
+    const makeDataURI = function (strData, strMime) {
+        return "data:" + strMime + ";base64," + strData;
+    };
+
+    // generates a <img> object containing the imagedata
+    const makeImageObject = function (strSource) {
+        const oImgElement = document.createElement("img");
+        oImgElement.src = strSource;
+        return oImgElement;
+    };
+
+    const scaleCanvas = function (oCanvas, iWidth, iHeight, flipy) {
+        if (iWidth && iHeight) {
+            const oSaveCanvas = document.createElement("canvas");
+            oSaveCanvas.width = iWidth;
+            oSaveCanvas.height = iHeight;
+            oSaveCanvas.style.width = iWidth + "px";
+            oSaveCanvas.style.height = iHeight + "px";
+            const oSaveCtx = oSaveCanvas.getContext("2d");
+            if (flipy) {
+                oSaveCtx.save();
+                oSaveCtx.scale(1.0, -1.0);
+                oSaveCtx.imageSmoothingEnabled = true;
+                oSaveCtx.drawImage(oCanvas, 0, 0, oCanvas.width, oCanvas.height, 0, 0, iWidth, -iHeight);
+                oSaveCtx.restore();
+            } else {
+                oSaveCtx.imageSmoothingEnabled = true;
+                oSaveCtx.drawImage(oCanvas, 0, 0, oCanvas.width, oCanvas.height, 0, 0, iWidth, iHeight);
+            }
+            return oSaveCanvas;
+        }
+        return oCanvas;
+    };
+
+    return {
+        saveAsPNG: function (oCanvas, bReturnImg, iWidth, iHeight, flipy) {
+            if (!bHasDataURL) return false;
+            const oScaledCanvas = scaleCanvas(oCanvas, iWidth, iHeight, flipy);
+            const strMime = "image/png";
+            const strData = oScaledCanvas.toDataURL(strMime);
+            if (bReturnImg) {
+                return makeImageObject(strData);
+            } else {
+                saveFile( strData);
+            }
+            return true;
+        },
+
+        saveAsJPEG: function (oCanvas, bReturnImg, iWidth, iHeight, flipy) {
+            if (!bHasDataURL) return false;
+            const oScaledCanvas = scaleCanvas(oCanvas, iWidth, iHeight, flipy);
+            const strMime = "image/jpeg";
+            const strData = oScaledCanvas.toDataURL(strMime);
+            // check if browser actually supports jpeg by looking for the mime type in the data uri. if not, return false
+            if (strData.indexOf(strMime) != 5) return false;
+            if (bReturnImg) {
+                return makeImageObject(strData);
+            } else {
+                saveFile( strData);
+            }
+            return true;
+        },
+
+        saveAsBMP: function (oCanvas, bReturnImg, iWidth, iHeight, flipy) {
+            if (!(bHasDataURL && bHasImageData && bHasBase64)) return false;
+            const oScaledCanvas = scaleCanvas(oCanvas, iWidth, iHeight, flipy);
+            const strMime = "image/bmp";
+            const oData = readCanvasData(oScaledCanvas), strImgData = createBMP(oData);
+            if (bReturnImg) {
+                return makeImageObject(makeDataURI(strImgData, strMime));
+            } else {
+                saveFile(makeDataURI(strImgData, strMime));
+            }
+            return true;
+        }
+    };
+})();
+
 /**
  * @desc Represents a WebGL render buffer.
  * @private
@@ -8261,6 +8310,83 @@ class RenderBuffer {
         return pix;
     }
 
+    readImage(params) {
+
+        const gl = this.gl;
+        const imageDataCache = this._getImageDataCache();
+        const pixelData = imageDataCache.pixelData;
+        const canvas = imageDataCache.canvas;
+        const imageData = imageDataCache.imageData;
+        const context = imageDataCache.context;
+
+        gl.readPixels(0, 0, this.buffer.width, this.buffer.height, gl.RGBA, gl.UNSIGNED_BYTE, pixelData);
+
+        imageData.data.set(pixelData);
+        context.putImageData(imageData, 0, 0);
+
+        const imageWidth = params.width || canvas.width;
+        const imageHeight = params.height || canvas.height;
+        const format = params.format || "jpeg";
+        const flipy = true; // Account for WebGL texture flipping
+
+        let image;
+
+        switch (format) {
+            case "jpeg":
+                image = Canvas2Image.saveAsJPEG(canvas, true, imageWidth, imageHeight, flipy);
+                break;
+            case "png":
+                image = Canvas2Image.saveAsPNG(canvas, true, imageWidth, imageHeight, flipy);
+                break;
+            case "bmp":
+                image = Canvas2Image.saveAsBMP(canvas, true, imageWidth, imageHeight, flipy);
+                break;
+            default:
+                console.error("Unsupported image format: '" + format + "' - supported types are 'jpeg', 'bmp' and 'png' - defaulting to 'jpeg'");
+                image = Canvas2Image.saveAsJPEG(canvas, true, imageWidth, imageHeight, flipy);
+        }
+
+        return image.src;
+    }
+
+    _getImageDataCache() {
+
+        const bufferWidth = this.buffer.width;
+        const bufferHeight = this.buffer.height;
+
+        let imageDataCache = this._imageDataCache;
+
+        if (imageDataCache) {
+            if (imageDataCache.width !== bufferWidth || imageDataCache.height !== bufferHeight) {
+                this._imageDataCache = null;
+                imageDataCache = null;
+            }
+        }
+
+        if (!imageDataCache) {
+
+            const canvas = document.createElement('canvas');
+            canvas.width = bufferWidth;
+            canvas.height = bufferHeight;
+
+            const context = canvas.getContext('2d');
+            const imageData = context.createImageData(bufferWidth, bufferHeight);
+
+            imageDataCache = {
+                pixelData: new Uint8Array(bufferWidth * bufferHeight * 4),
+                canvas: canvas,
+                context: context,
+                imageData: imageData,
+                width: bufferWidth,
+                height: bufferHeight
+            };
+
+            this._imageDataCache = imageDataCache;
+        }
+
+        return imageDataCache;
+    }
+
     unbind() {
         const gl = this.gl;
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -8298,6 +8424,7 @@ class RenderBuffer {
             this.buffer = null;
             this.bound = false;
         }
+        this._imageDataCache = null;
     }
 }
 
@@ -10143,6 +10270,7 @@ const Renderer = function (scene, options) {
     const canvas = scene.canvas.canvas;
     const gl = scene.canvas.gl;
     const canvasTransparent = (!!options.transparent);
+    const alphaDepthMask = options.alphaDepthMask;
 
     const pickIDs = new Map({});
 
@@ -10158,7 +10286,9 @@ const Renderer = function (scene, options) {
     const occlusionBuffer2 = new RenderBuffer(canvas, gl);
 
     const pickBuffer = new RenderBuffer(canvas, gl);
-    const readPixelBuffer = new RenderBuffer(canvas, gl);
+    const snapshotBuffer = new RenderBuffer(canvas, gl);
+
+    let snapshotBound = false;
 
     const saoOcclusionRenderer = new SAOOcclusionRenderer(scene);
     const saoBlurRenderer = new SAOBlurRenderer(scene);
@@ -10183,7 +10313,7 @@ const Renderer = function (scene, options) {
     this.webglContextRestored = function (gl) {
 
         pickBuffer.webglContextRestored(gl);
-        readPixelBuffer.webglContextRestored(gl);
+        snapshotBuffer.webglContextRestored(gl);
         saoDepthBuffer.webglContextRestored(gl);
         occlusionBuffer1.webglContextRestored(gl);
         occlusionBuffer2.webglContextRestored(gl);
@@ -10635,19 +10765,21 @@ const Renderer = function (scene, options) {
                     xrayEdgesOpaqueBin[i].drawXRayedEdgesOpaque(frameCtx);
                 }
             }
+
             if (xrayedFillTransparentBinLen > 0 || xrayEdgesTransparentBinLen > 0 || normalFillTransparentBinLen > 0) {
                 gl.enable(gl.CULL_FACE);
                 gl.enable(gl.BLEND);
 
                 if (canvasTransparent) {
-                    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-                } else {
                     gl.blendEquation(gl.FUNC_ADD);
                     gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+                } else {
+                    gl.blendEquation(gl.FUNC_ADD);
+                    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
                 }
 
                 frameCtx.backfaces = false;
-                {
+                if (!alphaDepthMask) {
                     gl.depthMask(false);
                 }
                 if (xrayEdgesTransparentBinLen > 0) {
@@ -10673,7 +10805,9 @@ const Renderer = function (scene, options) {
                     }
                 }
                 gl.disable(gl.BLEND);
-                gl.depthMask(true);
+                if (!alphaDepthMask) {
+                    gl.depthMask(true);
+                }
             }
 
             if (highlightedFillOpaqueBinLen > 0 || highlightedEdgesOpaqueBinLen > 0) {
@@ -11139,7 +11273,7 @@ const Renderer = function (scene, options) {
     };
 
     /**
-     * Read pixels from the renderer's frameCtx buffer. Performs a force-render first
+     * Read pixels from the renderer's current output. Performs a force-render first.
      * @param pixels
      * @param colors
      * @param len
@@ -11147,8 +11281,8 @@ const Renderer = function (scene, options) {
      * @private
      */
     this.readPixels = function (pixels, colors, len, opaqueOnly) {
-        readPixelBuffer.bind();
-        readPixelBuffer.clear();
+        snapshotBuffer.bind();
+        snapshotBuffer.clear();
         this.render({force: true, opaqueOnly: opaqueOnly});
         let color;
         let i;
@@ -11157,14 +11291,63 @@ const Renderer = function (scene, options) {
         for (i = 0; i < len; i++) {
             j = i * 2;
             k = i * 4;
-            color = readPixelBuffer.read(pixels[j], pixels[j + 1]);
+            color = snapshotBuffer.read(pixels[j], pixels[j + 1]);
             colors[k] = color[0];
             colors[k + 1] = color[1];
             colors[k + 2] = color[2];
             colors[k + 3] = color[3];
         }
-        readPixelBuffer.unbind();
+        snapshotBuffer.unbind();
         imageDirty = true;
+    };
+
+    /**
+     * Enter snapshot mode.
+     *
+     * Switches rendering to a hidden snapshot canvas.
+     *
+     * Exit snapshot mode using endSnapshot().
+     */
+    this.beginSnapshot = function () {
+        snapshotBuffer.bind();
+        snapshotBuffer.clear();
+        snapshotBound = true;
+    };
+
+    /**
+     * When in snapshot mode, renders a frame of the current Scene state to the snapshot canvas.
+     */
+    this.renderSnapshot = function () {
+        if (!snapshotBound) {
+            return;
+        }
+        snapshotBuffer.clear();
+        this.render({force: true, opaqueOnly: false});
+        imageDirty = true;
+    };
+
+    /**
+     * When in snapshot mode, gets an image of the snapshot canvas.
+     *
+     * @private
+     * @returns {String} The image data URI.
+     */
+    this.readSnapshot = function (params) {
+        const imageDataURI = snapshotBuffer.readImage(params);
+        return imageDataURI;
+    };
+
+    /**
+     * Exists snapshot mode.
+     *
+     * Switches rendering back to the main canvas.
+     */
+    this.endSnapshot = function () {
+        if (!snapshotBound) {
+            return;
+        }
+        snapshotBuffer.unbind();
+        snapshotBound = false;
     };
 
     /**
@@ -11177,7 +11360,7 @@ const Renderer = function (scene, options) {
         drawables = {};
 
         pickBuffer.destroy();
-        readPixelBuffer.destroy();
+        snapshotBuffer.destroy();
         saoDepthBuffer.destroy();
         occlusionBuffer1.destroy();
         occlusionBuffer2.destroy();
@@ -11193,121 +11376,148 @@ const Renderer = function (scene, options) {
 };
 
 /**
- @desc  Publishes keyboard and mouse events that occur on the parent {@link Scene}'s {@link Canvas}.
-
- * Each {@link Scene} provides an Input on itself as a read-only property.
-
- ## Usage
-
- In this example, we're subscribing to some mouse and key events that will occur on
- a {@link Scene} {@link Canvas"}}Canvas{{/crossLink}}.
-
- ````javascript
- var myScene = new xeokit.Scene();
-
- var input = myScene.input;
-
- // We'll save a handle to this subscription
- // to show how to unsubscribe, further down
- var handle = input.on("mousedown", function(coords) {
-       console.log("Mouse down at: x=" + coords[0] + ", y=" + coords[1]);
- });
-
- input.on("mouseup", function(coords) {
-       console.log("Mouse up at: x=" + coords[0] + ", y=" + coords[1]);
- });
-
- input.on("mouseclicked", function(coords) {
-      console.log("Mouse clicked at: x=" + coords[0] + ", y=" + coords[1]);
- });
-
- input.on("dblclick", function(coords) {
-       console.log("Double-click at: x=" + coords[0] + ", y=" + coords[1]);
- });
-
- input.on("keydown", function(keyCode) {
-        switch (keyCode) {
-
-            case this.KEY_A:
-               console.log("The 'A' key is down");
-               break;
-
-            case this.KEY_B:
-               console.log("The 'B' key is down");
-               break;
-
-            case this.KEY_C:
-               console.log("The 'C' key is down");
-               break;
-
-            default:
-               console.log("Some other key is down");
-       }
-     });
-
- input.on("keyup", function(keyCode) {
-        switch (keyCode) {
-
-            case this.KEY_A:
-               console.log("The 'A' key is up");
-               break;
-
-            case this.KEY_B:
-               console.log("The 'B' key is up");
-               break;
-
-            case this.KEY_C:
-               console.log("The 'C' key is up");
-               break;
-
-            default:
-               console.log("Some other key is up");
-        }
-     });
-
- // TODO: ALT and CTRL keys etc
- ````
-
- ### Unsubscribing from Events
-
- In the snippet above, we saved a handle to one of our event subscriptions.
-
- We can then use that handle to unsubscribe again, like this:
-
- ````javascript
- input.off(handle);
- ````
-
- ## Disabling keyboard input
-
- When the mouse is over the canvas, the canvas will consume "keydown" events. Therefore, sometimes we need to prevent
- disable keyboard control, so that other UI elements can get those events.
-
- To disable keyboard control, set {@link Input#keyboardEnabled} ````false````:
-
- ````javascript
- myViewer.scene.input.keyboardEnabled = false;
- ````
-
- @extends Component
+ * @desc Meditates mouse, touch and keyboard events for various interaction controls.
+ *
+ * Ordinarily, you would only use this component as a utility to help manage input events and state for your
+ * own custom input handlers.
+ *
+ * * Located at {@link Scene#input}
+ * * Used by (at least) {@link CameraControl}
+ *
+ * ## Usage
+ *
+ * Subscribing to mouse events on the canvas:
+ *
+ * ````javascript
+ * import {Viewer} from "../src/viewer/Viewer.js";
+ *
+ * const viewer = new Viewer({
+ *      canvasId: "myCanvas"
+ * });
+ *
+ * const input = viewer.scene.input;
+ *
+ * const onMouseDown = input.on("mousedown", (canvasCoords) => {
+ *       console.log("Mouse down at: x=" + canvasCoords[0] + ", y=" + coords[1]);
+ * });
+ *
+ * const onMouseUp = input.on("mouseup", (canvasCoords) => {
+ *       console.log("Mouse up at: x=" + canvasCoords[0] + ", y=" + canvasCoords[1]);
+ * });
+ *
+ * const onMouseClicked = input.on("mouseclicked", (canvasCoords) => {
+ *      console.log("Mouse clicked at: x=" + canvasCoords[0] + ", y=" + canvasCoords[1]);
+ * });
+ *
+ * const onDblClick = input.on("dblclick", (canvasCoords) => {
+ *       console.log("Double-click at: x=" + canvasCoords[0] + ", y=" + canvasCoords[1]);
+ * });
+ * ````
+ *
+ * Subscribing to keyboard events on the canvas:
+ *
+ * ````javascript
+ * const onKeyDown = input.on("keydown", (keyCode) => {
+ *      switch (keyCode) {
+ *          case this.KEY_A:
+ *              console.log("The 'A' key is down");
+ *              break;
+ *
+ *          case this.KEY_B:
+ *              console.log("The 'B' key is down");
+ *              break;
+ *
+ *          case this.KEY_C:
+ *              console.log("The 'C' key is down");
+ *              break;
+ *
+ *          default:
+ *              console.log("Some other key is down");
+ *      }
+ * });
+ *
+ * const onKeyUp = input.on("keyup", (keyCode) => {
+ *      switch (keyCode) {
+ *          case this.KEY_A:
+ *              console.log("The 'A' key is up");
+ *              break;
+ *
+ *          case this.KEY_B:
+ *              console.log("The 'B' key is up");
+ *              break;
+ *
+ *          case this.KEY_C:
+ *              console.log("The 'C' key is up");
+ *              break;
+ *
+ *          default:
+ *              console.log("Some other key is up");
+ *      }
+ *  });
+ * ````
+ *
+ * Checking if keys are down:
+ *
+ * ````javascript
+ * const isCtrlDown = input.ctrlDown;
+ * const isAltDown = input.altDown;
+ * const shiftDown = input.shiftDown;
+ * //...
+ *
+ * const isAKeyDown = input.keyDown[input.KEY_A];
+ * const isBKeyDown = input.keyDown[input.KEY_B];
+ * const isShiftKeyDown = input.keyDown[input.KEY_SHIFT];
+ * //...
+ *
+ * ````
+ * Unsubscribing from events:
+ *
+ * ````javascript
+ * input.off(onMouseDown);
+ * input.off(onMouseUp);
+ * //...
+ * ````
+ *
+ * ## Disabling all events
+ *
+ * Event handling is enabled by default.
+ *
+ * To disable all events:
+ *
+ * ````javascript
+ * myViewer.scene.input.setEnabled(false);
+ * ````
+ * To enable all events again:
+ *
+ * ````javascript
+ * myViewer.scene.input.setEnabled(true);
+ * ````
+ *
+ * ## Disabling keyboard input
+ *
+ * When the mouse is over the canvas, the canvas will consume keyboard events. Therefore, sometimes we need
+ * to disable keyboard control, so that other UI elements can get those events.
+ *
+ * To disable keyboard events:
+ *
+ * ````javascript
+ * myViewer.scene.input.setKeyboardEnabled(false);
+ * ````
+ *
+ * To enable keyboard events again:
+ *
+ * ````javascript
+ * myViewer.scene.input.setKeyboardEnabled(true)
+ * ````
  */
-
 class Input extends Component {
 
     /**
-     @private
+     * @private
      */
-    get type() {
-        return "Input";
-    }
-
     constructor(owner, cfg = {}) {
 
         super(owner, cfg);
-
-        const self = this;
-
-        // Key codes
 
         /**
          * Code for the BACKSPACE key.
@@ -12101,38 +12311,50 @@ class Input extends Component {
          */
         this.KEY_SPACE = 32;
 
-        this._element = cfg.element;
+        /**
+         * The canvas element that mouse and keyboards are bound to.
+         *
+         * @final
+         * @type {HTMLCanvasElement}
+         */
+        this.element = cfg.element;
 
-        // True when ALT down
+        /** True whenever ALT key is down.
+         *
+         * @type {boolean}
+         */
         this.altDown = false;
 
-        /** True whenever CTRL is down
+        /** True whenever CTRL key is down.
          *
          * @type {boolean}
          */
         this.ctrlDown = false;
 
-        /** True whenever left mouse button is down
+        /** True whenever left mouse button is down.
          *
          * @type {boolean}
          */
         this.mouseDownLeft = false;
 
-        /** True whenever middle mouse button is down
+        /**
+         * True whenever middle mouse button is down.
          *
          * @type {boolean}
          */
         this.mouseDownMiddle = false;
 
-        /** True whenever right mouse button is down
+        /**
+         * True whenever the right mouse button is down.
          *
          * @type {boolean}
          */
         this.mouseDownRight = false;
 
-        /** Flag for each key that's down
+        /**
+         * Flag for each key that's down.
          *
-         * @type {boolean}
+         * @type {boolean[]}
          */
         this.keyDown = [];
 
@@ -12142,7 +12364,7 @@ class Input extends Component {
          */
         this.enabled = true;
 
-        /** True while keyboard input enabled.
+        /** True while keyboard input is enabled.
          *
          * Default value is ````true````.
          *
@@ -12152,335 +12374,214 @@ class Input extends Component {
          */
         this.keyboardEnabled = true;
 
-        /** True while mouse is over the parent {@link Scene} {@link Canvas"}}Canvas{{/crossLink}}
+        /** True while the mouse is over the canvas.
          *
          * @type {boolean}
          */
         this.mouseover = false;
 
-        // Capture input events and publish them on this component
+        /**
+         * Current mouse position within the canvas.
+         * @type {Number[]}
+         */
+        this.mouseCanvasPos = math.vec2();
 
-        document.addEventListener("keydown", this._keyDownListener = function (e) {
+        this._bindEvents();
+    }
 
-            if (!self.enabled || (!self.keyboardEnabled)) {
+    _bindEvents() {
+
+        if (this._eventsBound) {
+            return;
+        }
+
+        document.addEventListener("keydown", this._keyDownListener = (e) => {
+            if (!this.enabled || (!this.keyboardEnabled)) {
                 return;
             }
-
             if (e.target.tagName !== "INPUT" && e.target.tagName !== "TEXTAREA") {
-
-                if (e.keyCode === self.KEY_CTRL) {
-                    self.ctrlDown = true;
-                } else if (e.keyCode === self.KEY_ALT) {
-                    self.altDown = true;
+                if (e.keyCode === this.KEY_CTRL) {
+                    this.ctrlDown = true;
+                } else if (e.keyCode === this.KEY_ALT) {
+                    this.altDown = true;
+                } else if (e.keyCode === this.KEY_SHIFT) {
+                    this.shiftDown = true;
                 }
-
-                self.keyDown[e.keyCode] = true;
-
-                /**
-                 * Fired whenever a key is pressed while the parent
-                 * {@link Scene}'s {@link Canvas"}}Canvas{{/crossLink}} has input focus.
-                 * @event keydown
-                 * @param value {Number} The key code, for example {@link Input/KEY_LEFT_ARROW},
-                 */
-                self.fire("keydown", e.keyCode, true);
+                this.keyDown[e.keyCode] = true;
+                this.fire("keydown", e.keyCode, true);
             }
-
-            if (self.mouseover) {
-                e.preventDefault();
-            }
-
         }, false);
 
-        document.addEventListener("keyup", this._keyUpListener = function (e) {
-
-            if (!self.enabled || (!self.keyboardEnabled)) {
+        document.addEventListener("keyup", this._keyUpListener = (e) => {
+            if (!this.enabled || (!this.keyboardEnabled)) {
                 return;
             }
-
             if (e.target.tagName !== "INPUT" && e.target.tagName !== "TEXTAREA") {
-
-                if (e.keyCode === self.KEY_CTRL) {
-                    self.ctrlDown = false;
-                } else if (e.keyCode === self.KEY_ALT) {
-                    self.altDown = false;
+                if (e.keyCode === this.KEY_CTRL) {
+                    this.ctrlDown = false;
+                } else if (e.keyCode === this.KEY_ALT) {
+                    this.altDown = false;
+                } else if (e.keyCode === this.KEY_SHIFT) {
+                    this.shiftDown = false;
                 }
-
-                self.keyDown[e.keyCode] = false;
-
-                /**
-                 * Fired whenever a key is released while the parent
-                 * {@link Scene}'s {@link Canvas"}}Canvas{{/crossLink}} has input focus.
-                 * @event keyup
-                 * @param value {Number} The key code, for example {@link Input/KEY_LEFT_ARROW},
-                 */
-                self.fire("keyup", e.keyCode, true);
+                this.keyDown[e.keyCode] = false;
+                this.fire("keyup", e.keyCode, true);
             }
         });
 
-        cfg.element.addEventListener("mouseenter", this._mouseEnterListener = function (e) {
-
-            if (!self.enabled) {
+        this.element.addEventListener("mouseenter", this._mouseEnterListener = (e) => {
+            if (!this.enabled) {
                 return;
             }
-
-            self.mouseover = true;
-
-            const coords = self._getClickCoordsWithinElement(e);
-
-            /**
-             * Fired whenever the mouse is moved into of the parent
-             * {@link Scene}'s {@link Canvas"}}Canvas{{/crossLink}}.
-             * @event mouseenter
-             * @param value {[Number, Number]} The mouse coordinates within the {@link Canvas"}}Canvas{{/crossLink}},
-             */
-            self.fire("mouseenter", coords, true);
+            this.mouseover = true;
+            this._getMouseCanvasPos(e);
+            this.fire("mouseenter", this.mouseCanvasPos, true);
         });
 
-        cfg.element.addEventListener("mouseleave", this._mouseLeaveListener = function (e) {
-
-            if (!self.enabled) {
+        this.element.addEventListener("mouseleave", this._mouseLeaveListener = (e) => {
+            if (!this.enabled) {
                 return;
             }
-
-            self.mouseover = false;
-
-            const coords = self._getClickCoordsWithinElement(e);
-
-            /**
-             * Fired whenever the mouse is moved out of the parent
-             * {@link Scene}'s {@link Canvas"}}Canvas{{/crossLink}}.
-             * @event mouseleave
-             * @param value {[Number, Number]} The mouse coordinates within the {@link Canvas"}}Canvas{{/crossLink}},
-             */
-            self.fire("mouseleave", coords, true);
+            this.mouseover = false;
+            this._getMouseCanvasPos(e);
+            this.fire("mouseleave", this.mouseCanvasPos, true);
         });
 
-
-        cfg.element.addEventListener("mousedown", this._mouseDownListener = function (e) {
-
-            if (!self.enabled) {
+        this.element.addEventListener("mousedown", this._mouseDownListener = (e) => {
+            if (!this.enabled) {
                 return;
             }
-
             switch (e.which) {
-
                 case 1:// Left button
-                    self.mouseDownLeft = true;
+                    this.mouseDownLeft = true;
                     break;
-
                 case 2:// Middle/both buttons
-                    self.mouseDownMiddle = true;
+                    this.mouseDownMiddle = true;
                     break;
-
                 case 3:// Right button
-                    self.mouseDownRight = true;
+                    this.mouseDownRight = true;
                     break;
             }
-
-            const coords = self._getClickCoordsWithinElement(e);
-
-            cfg.element.focus();
-
-            /**
-             * Fired whenever the mouse is pressed over the parent
-             * {@link Scene}'s {@link Canvas"}}Canvas{{/crossLink}}.
-             * @event mousedown
-             * @param value {[Number, Number]} The mouse coordinates within the {@link Canvas"}}Canvas{{/crossLink}},
-             */
-            self.fire("mousedown", coords, true);
-
-            if (self.mouseover) {
+            this._getMouseCanvasPos(e);
+            this.element.focus();
+            this.fire("mousedown", this.mouseCanvasPos, true);
+            if (this.mouseover) {
                 e.preventDefault();
             }
         });
 
-        document.addEventListener("mouseup", this._mouseUpListener = function (e) {
-
-            if (!self.enabled) {
+        document.addEventListener("mouseup", this._mouseUpListener = (e) => {
+            if (!this.enabled) {
                 return;
             }
-
             switch (e.which) {
-
                 case 1:// Left button
-                    self.mouseDownLeft = false;
+                    this.mouseDownLeft = false;
                     break;
-
                 case 2:// Middle/both buttons
-                    self.mouseDownMiddle = false;
+                    this.mouseDownMiddle = false;
                     break;
-
                 case 3:// Right button
-                    self.mouseDownRight = false;
+                    this.mouseDownRight = false;
                     break;
             }
-
-            const coords = self._getClickCoordsWithinElement(e);
-
-            /**
-             * Fired whenever the mouse is released over the parent
-             * {@link Scene}'s {@link Canvas"}}Canvas{{/crossLink}}.
-             * @event mouseup
-             * @param value {[Number, Number]} The mouse coordinates within the {@link Canvas"}}Canvas{{/crossLink}},
-             */
-            self.fire("mouseup", coords, true);
-
-            if (self.mouseover) {
-                e.preventDefault();
-            }
+            this.fire("mouseup", this.mouseCanvasPos, true);
+            // if (this.mouseover) {
+            //     e.preventDefault();
+            // }
         }, true);
 
-        document.addEventListener("click", this._clickListener = function (e) {
-
-            if (!self.enabled) {
+        document.addEventListener("click", this._clickListener = (e) => {
+            if (!this.enabled) {
                 return;
             }
-
             switch (e.which) {
-
                 case 1:// Left button
-                    self.mouseDownLeft = false;
-                    self.mouseDownRight = false;
+                    this.mouseDownLeft = false;
+                    this.mouseDownRight = false;
                     break;
-
                 case 2:// Middle/both buttons
-                    self.mouseDownMiddle = false;
+                    this.mouseDownMiddle = false;
                     break;
-
                 case 3:// Right button
-                    self.mouseDownLeft = false;
-                    self.mouseDownRight = false;
+                    this.mouseDownLeft = false;
+                    this.mouseDownRight = false;
                     break;
             }
-
-            const coords = self._getClickCoordsWithinElement(e);
-
-            /**
-             * Fired whenever the mouse is clicked over the parent
-             * {@link Scene}'s {@link Canvas"}}Canvas{{/crossLink}}.
-             * @event dblclick
-             * @param value {[Number, Number]} The mouse coordinates within the {@link Canvas"}}Canvas{{/crossLink}},
-             */
-            self.fire("click", coords, true);
-
-            if (self.mouseover) {
+            this._getMouseCanvasPos(e);
+            this.fire("click", this.mouseCanvasPos, true);
+            if (this.mouseover) {
                 e.preventDefault();
             }
         });
 
-        document.addEventListener("dblclick", this._dblClickListener = function (e) {
-
-            if (!self.enabled) {
+        document.addEventListener("dblclick", this._dblClickListener = (e) => {
+            if (!this.enabled) {
                 return;
             }
-
             switch (e.which) {
-
                 case 1:// Left button
-                    self.mouseDownLeft = false;
-                    self.mouseDownRight = false;
+                    this.mouseDownLeft = false;
+                    this.mouseDownRight = false;
                     break;
-
                 case 2:// Middle/both buttons
-                    self.mouseDownMiddle = false;
+                    this.mouseDownMiddle = false;
                     break;
-
                 case 3:// Right button
-                    self.mouseDownLeft = false;
-                    self.mouseDownRight = false;
+                    this.mouseDownLeft = false;
+                    this.mouseDownRight = false;
                     break;
             }
-
-            const coords = self._getClickCoordsWithinElement(e);
-
-            /**
-             * Fired whenever the mouse is double-clicked over the parent
-             * {@link Scene}'s {@link Canvas"}}Canvas{{/crossLink}}.
-             * @event dblclick
-             * @param value {[Number, Number]} The mouse coordinates within the {@link Canvas"}}Canvas{{/crossLink}},
-             */
-            self.fire("dblclick", coords, true);
-
-            if (self.mouseover) {
+            this._getMouseCanvasPos(e);
+            this.fire("dblclick", this.mouseCanvasPos, true);
+            if (this.mouseover) {
                 e.preventDefault();
             }
         });
 
-        cfg.element.addEventListener("mousemove", this._mouseMoveListener = function (e) {
-
-            if (!self.enabled) {
+        this.element.addEventListener("mousemove", this._mouseMoveListener = (e) => {
+            if (!this.enabled) {
                 return;
             }
-
-            const coords = self._getClickCoordsWithinElement(e);
-
-            /**
-             * Fired whenever the mouse is moved over the parent
-             * {@link Scene}'s {@link Canvas"}}Canvas{{/crossLink}}.
-             * @event mousedown
-             * @param value {[Number, Number]} The mouse coordinates within the {@link Canvas"}}Canvas{{/crossLink}},
-             */
-            self.fire("mousemove", coords, true);
-
-            if (self.mouseover) {
+            this._getMouseCanvasPos(e);
+            this.fire("mousemove", this.mouseCanvasPos, true);
+            if (this.mouseover) {
                 e.preventDefault();
             }
         });
 
-        cfg.element.addEventListener("wheel", this._mouseWheelListener = function (e, d) {
-
-            if (!self.enabled) {
+        this.element.addEventListener("wheel", this._mouseWheelListener = (e, d) => {
+            if (!this.enabled) {
                 return;
             }
-
             const delta = Math.max(-1, Math.min(1, -e.deltaY * 40));
-
-            /**
-             * Fired whenever the mouse wheel is moved over the parent
-             * {@link Scene}'s {@link Canvas"}}Canvas{{/crossLink}}.
-             * @event mousewheel
-             * @param delta {Number} The mouse wheel delta,
-             */
-            self.fire("mousewheel", delta, true);
+            this.fire("mousewheel", delta, true);
         }, {passive: true});
 
         // mouseclicked
 
-        (function () {
-
+        {
             let downX;
             let downY;
-
             // Tolerance between down and up positions for a mouse click
             const tolerance = 2;
-
-            self.on("mousedown", function (params) {
+            this.on("mousedown", (params) => {
                 downX = params[0];
                 downY = params[1];
             });
-
-            self.on("mouseup", function (params) {
-
+            this.on("mouseup", (params) => {
                 if (downX >= (params[0] - tolerance) &&
                     downX <= (params[0] + tolerance) &&
                     downY >= (params[1] - tolerance) &&
                     downY <= (params[1] + tolerance)) {
-
-                    /**
-                     * Fired whenever the mouse is clicked over the parent
-                     * {@link Scene}'s {@link Canvas"}}Canvas{{/crossLink}}.
-                     * @event mouseclicked
-                     * @param value {[Number, Number]} The mouse coordinates within the {@link Canvas"}}Canvas{{/crossLink}},
-                     */
-                    self.fire("mouseclicked", params, true);
+                    this.fire("mouseclicked", params, true);
                 }
             });
-        })();
-
+        }
 
         // VR
 
-        (function () {
+        {
 
             const orientationAngleLookup = {
                 'landscape-primary': 90,
@@ -12515,7 +12616,7 @@ class Input extends Component {
             };
 
             if (window.OrientationChangeEvent) {
-                window.addEventListener('orientationchange', self._orientationchangedListener = function () {
+                window.addEventListener('orientationchange', this._orientationchangedListener = () => {
 
                         orientation = window.screen.orientation || window.screen.mozOrientation || window.msOrientation || null;
                         orientationAngle = orientation ? (orientationAngleLookup[orientation] || 0) : 0;
@@ -12530,13 +12631,13 @@ class Input extends Component {
                          * @param orientation The orientation: "landscape-primary", "landscape-secondary", "portrait-secondary" or "portrait-primary"
                          * @param orientationAngle The orientation angle in degrees: 90 for landscape-primary, -90 for landscape-secondary, 180 for portrait-secondary or 0 for portrait-primary.
                          */
-                        self.fire("orientationchange", orientationChangeEvent);
+                        this.fire("orientationchange", orientationChangeEvent);
                     },
                     false);
             }
 
             if (window.DeviceMotionEvent) {
-                window.addEventListener('devicemotion', self._deviceMotionListener = function (e) {
+                window.addEventListener('devicemotion', this._deviceMotionListener = (e) => {
 
                         deviceMotionEvent.interval = e.interval;
                         deviceMotionEvent.orientationAngle = orientationAngle;
@@ -12576,13 +12677,13 @@ class Input extends Component {
                          * @param, Number interval The interval, in milliseconds, at which this event is fired. The next event will be fired in approximately this amount of time.
                          * @param  Float32Array rotationRate The rates of rotation of the device about each axis, in degrees per second.
                          */
-                        self.fire("devicemotion", deviceMotionEvent);
+                        this.fire("devicemotion", deviceMotionEvent);
                     },
                     false);
             }
 
             if (window.DeviceOrientationEvent) {
-                window.addEventListener("deviceorientation", self._deviceOrientListener = function (e) {
+                window.addEventListener("deviceorientation", this._deviceOrientListener = (e) => {
 
                         deviceOrientationEvent.gamma = e.gamma;
                         deviceOrientationEvent.beta = e.beta;
@@ -12601,44 +12702,81 @@ class Input extends Component {
                          * @param Number gamma The current orientation of the device around the Y axis in degrees; that is, how far the device is turned left or right.
                          * @param Boolean absolute This value is true if the orientation is provided as a difference between the device coordinate frame and the Earth coordinate frame; if the device can't detect the Earth coordinate frame, this value is false.
                          */
-                        self.fire("deviceorientation", deviceOrientationEvent);
+                        this.fire("deviceorientation", deviceOrientationEvent);
                     },
                     false);
             }
-        })();
+        }
+        this._eventsBound = true;
     }
 
-    _getClickCoordsWithinElement(event) {
-        const coords = [0, 0];
+    _unbindEvents() {
+        if (!this._eventsBound) {
+            return;
+        }
+        document.removeEventListener("keydown", this._keyDownListener);
+        document.removeEventListener("keyup", this._keyUpListener);
+        this.element.removeEventListener("mouseenter", this._mouseEnterListener);
+        this.element.removeEventListener("mouseleave", this._mouseLeaveListener);
+        this.element.removeEventListener("mousedown", this._mouseDownListener);
+        document.removeEventListener("mouseup", this._mouseDownListener);
+        document.removeEventListener("click", this._clickListener);
+        document.removeEventListener("dblclick", this._dblClickListener);
+        this.element.removeEventListener("mousemove", this._mouseMoveListener);
+        this.element.removeEventListener("wheel", this._mouseWheelListener);
+        if (window.OrientationChangeEvent) {
+            window.removeEventListener('orientationchange', this._orientationchangedListener);
+        }
+        if (window.DeviceMotionEvent) {
+            window.removeEventListener('devicemotion', this._deviceMotionListener);
+        }
+        if (window.DeviceOrientationEvent) {
+            window.removeEventListener("deviceorientation", this._deviceOrientListener);
+        }
+        this._eventsBound = false;
+    }
+
+    _getMouseCanvasPos(event) {
         if (!event) {
             event = window.event;
-            coords.x = event.x;
-            coords.y = event.y;
+            this.mouseCanvasPos[0] = event.x;
+            this.mouseCanvasPos[1] = event.y;
         } else {
             let element = event.target;
             let totalOffsetLeft = 0;
             let totalOffsetTop = 0;
-
             while (element.offsetParent) {
                 totalOffsetLeft += element.offsetLeft;
                 totalOffsetTop += element.offsetTop;
                 element = element.offsetParent;
             }
-            coords[0] = event.pageX - totalOffsetLeft;
-            coords[1] = event.pageY - totalOffsetTop;
+            this.mouseCanvasPos[0] = event.pageX - totalOffsetLeft;
+            this.mouseCanvasPos[1] = event.pageY - totalOffsetTop;
         }
-        return coords;
     }
 
     /**
-     * Enable or disable all input handlers
+     * Sets whether input handlers are enabled.
      *
-     * @param enable
+     * Default value is ````true````.
+     *
+     * @param {Boolean} enable Indicates if input handlers are enabled.
      */
     setEnabled(enable) {
         if (this.enabled !== enable) {
             this.fire("enabled", this.enabled = enable);
         }
+    }
+
+    /**
+     * Gets whether input handlers are enabled.
+     *
+     * Default value is ````true````.
+     *
+     * @returns {Boolean} Indicates if input handlers are enabled.
+     */
+    getEnabled() {
+        return this.enabled;
     }
 
     /**
@@ -12648,7 +12786,7 @@ class Input extends Component {
      *
      * {@link CameraControl} will not respond to keyboard events while this is set ````false````.
      *
-     * @param {Boolean} value Set ````true```` to enable keyboard input.
+     * @param {Boolean} value Indicates whether keyboard input is enabled.
      */
     setKeyboardEnabled(value) {
         this.keyboardEnabled = value;
@@ -12661,34 +12799,18 @@ class Input extends Component {
      *
      * {@link CameraControl} will not respond to keyboard events while this is set ````false````.
      *
-     * @returns {Boolean} Returns ````true```` if keyboard input is enabled.
+     * @returns {Boolean} Returns whether keyboard input is enabled.
      */
     getKeyboardEnabled() {
         return this.keyboardEnabled;
     }
 
+    /**
+     * @private
+     */
     destroy() {
         super.destroy();
-        // Prevent memory leak when destroying canvas/WebGL context
-        document.removeEventListener("keydown", this._keyDownListener);
-        document.removeEventListener("keyup", this._keyUpListener);
-        this._element.removeEventListener("mouseenter", this._mouseEnterListener);
-        this._element.removeEventListener("mouseleave", this._mouseLeaveListener);
-        this._element.removeEventListener("mousedown", this._mouseDownListener);
-        document.removeEventListener("mouseup", this._mouseDownListener);
-        document.removeEventListener("click", this._clickListener);
-        document.removeEventListener("dblclick", this._dblClickListener);
-        this._element.removeEventListener("mousemove", this._mouseMoveListener);
-        this._element.removeEventListener("wheel", this._mouseWheelListener);
-        if (window.OrientationChangeEvent) {
-            window.removeEventListener('orientationchange', this._orientationchangedListener);
-        }
-        if (window.DeviceMotionEvent) {
-            window.removeEventListener('devicemotion', this._deviceMotionListener);
-        }
-        if (window.DeviceOrientationEvent) {
-            window.removeEventListener("deviceorientation", this._deviceOrientListener);
-        }
+        this._unbindEvents();
     }
 }
 
@@ -14576,6 +14698,7 @@ class Camera extends Component {
          @param value The property's new value
          */
         this.fire("projection",  this._projectionType);
+        this.fire("projMatrix",  this._project.matrix);
     }
 
     /**
@@ -19271,24 +19394,24 @@ function getEntityIDMap(scene, entityIds) {
  * For example, to pick a point on the surface of the closest entity at the given canvas coordinates:
  *
  * ````javascript
- * var hit = scene.pick({
+ * var pickResult = scene.pick({
  *      pickSurface: true,
  *      canvasPos: [23, 131]
  * });
  *
- * if (hit) { // Picked an entity
+ * if (pickResult) { // Picked an entity
  *
- *     var entity = hit.entity;
+ *     var entity = pickResult.entity;
  *
- *     var primitive = hit.primitive; // Type of primitive that was picked, usually "triangles"
- *     var primIndex = hit.primIndex; // Position of triangle's first index in the picked Mesh's Geometry's indices array
- *     var indices = hit.indices; // UInt32Array containing the triangle's vertex indices
- *     var localPos = hit.localPos; // Float32Array containing the picked Local-space position on the triangle
- *     var worldPos = hit.worldPos; // Float32Array containing the picked World-space position on the triangle
- *     var viewPos = hit.viewPos; // Float32Array containing the picked View-space position on the triangle
- *     var bary = hit.bary; // Float32Array containing the picked barycentric position within the triangle
- *     var normal = hit.normal; // Float32Array containing the interpolated normal vector at the picked position on the triangle
- *     var uv = hit.uv; // Float32Array containing the interpolated UV coordinates at the picked position on the triangle
+ *     var primitive = pickResult.primitive; // Type of primitive that was picked, usually "triangles"
+ *     var primIndex = pickResult.primIndex; // Position of triangle's first index in the picked Mesh's Geometry's indices array
+ *     var indices = pickResult.indices; // UInt32Array containing the triangle's vertex indices
+ *     var localPos = pickResult.localPos; // Float32Array containing the picked Local-space position on the triangle
+ *     var worldPos = pickResult.worldPos; // Float32Array containing the picked World-space position on the triangle
+ *     var viewPos = pickResult.viewPos; // Float32Array containing the picked View-space position on the triangle
+ *     var bary = pickResult.bary; // Float32Array containing the picked barycentric position within the triangle
+ *     var normal = pickResult.normal; // Float32Array containing the interpolated normal vector at the picked position on the triangle
+ *     var uv = pickResult.uv; // Float32Array containing the interpolated UV coordinates at the picked position on the triangle
  * }
  * ````
  *
@@ -19302,14 +19425,14 @@ function getEntityIDMap(scene, entityIds) {
  * in the way, as if they weren't there:
  *
  * ````javascript
- * var hit = scene.pick({
+ * var pickResult = scene.pick({
  *      canvasPos: [23, 131],
  *      includeEntities: ["gearbox#77.0", "gearbox#79.0"]
  * });
  *
- * if (hit) {
+ * if (pickResult) {
  *       // Entity will always be either "gearbox#77.0" or "gearbox#79.0"
- *       var entity = hit.entity;
+ *       var entity = pickResult.entity;
  * }
  * ````
  *
@@ -19317,14 +19440,14 @@ function getEntityIDMap(scene, entityIds) {
  * Entities if they happen to be in the way:
  *
  * ````javascript
- * var hit = scene.pick({
+ * var pickResult = scene.pick({
  *      canvasPos: [23, 131],
  *      excludeEntities: ["gearbox#77.0", "gearbox#79.0"]
  * });
  *
- * if (hit) {
+ * if (pickResult) {
  *       // Entity will never be "gearbox#77.0" or "gearbox#79.0"
- *       var entity = hit.entity;
+ *       var entity = pickResult.entity;
  * }
  * ````
  *
@@ -19451,6 +19574,7 @@ class Scene extends Component {
     }
 
     /**
+     * @private
      * @constructor
      * @param {Object} cfg Scene configuration.
      * @param {String} [cfg.canvasId]  ID of an existing HTML canvas for the {@link Scene#canvas} - either this or canvasElement is mandatory. When both values are given, the element reference is always preferred to the ID.
@@ -19468,6 +19592,7 @@ class Scene extends Component {
         }
 
         const transparent = (!!cfg.transparent);
+        const alphaDepthMask = (!!cfg.alphaDepthMask);
 
         this._aabbDirty = true;
 
@@ -19580,6 +19705,34 @@ class Scene extends Component {
         this.colorizedObjects = {};
         this._numColorizedObjects = 0;
 
+        /**
+         * Map of {@link Entity}s that represent objects whose opacity was updated.
+         *
+         * An Entity represents an object if {@link Entity#isObject} is ````true````.
+         *
+         * Each {@link Entity} is mapped here by {@link Entity#id}.
+         *
+         * @property opacityObjects
+         * @final
+         * @type {{String:Object}}
+         */
+        this.opacityObjects = {};
+        this._numOpacityObjects = 0;
+
+        /**
+         * Map of {@link Entity}s that represent objects whose {@link Entity#offset}s were updated.
+         *
+         * An Entity represents an object if {@link Entity#isObject} is ````true````.
+         *
+         * Each {@link Entity} is mapped here by {@link Entity#id}.
+         *
+         * @property offsetObjects
+         * @final
+         * @type {{String:Object}}
+         */
+        this.offsetObjects = {};
+        this._numOffsetObjects = 0;
+
         // Cached ID arrays, lazy-rebuilt as needed when stale after map updates
 
         /**
@@ -19592,6 +19745,8 @@ class Scene extends Component {
         this._highlightedObjectIds = null;
         this._selectedObjectIds = null;
         this._colorizedObjectIds = null;
+        this._opacityObjectIds = null;
+        this._offsetObjectIds = null;
 
         this._collidables = {}; // Components that contribute to the Scene AABB
         this._compilables = {}; // Components that require shader compilation
@@ -19673,7 +19828,8 @@ class Scene extends Component {
         });
 
         this._renderer = new Renderer(this, {
-            transparent: transparent
+            transparent: transparent,
+            alphaDepthMask: alphaDepthMask
         });
 
         this._sectionPlanesState = new (function () {
@@ -19691,6 +19847,7 @@ class Scene extends Component {
                     return this.hash = ";";
                 }
                 let sectionPlane;
+
                 const hashParts = [];
                 for (let i = 0, len = sectionPlanes.length; i < len; i++) {
                     sectionPlane = sectionPlanes[i];
@@ -19893,7 +20050,7 @@ class Scene extends Component {
         // Default lights
 
         new AmbientLight(this, {
-            color: [0.3, 0.3, 0.3],
+            color: [1.0, 1.0, 1.0],
             intensity: 0.7
         });
 
@@ -19949,7 +20106,7 @@ class Scene extends Component {
                 window.nextID = 0;
             }
             //component.id = math.createUUID();
-            component.id = "_" + window.nextID++;
+            component.id = "__" + window.nextID++;
             while (this.components[component.id]) {
                 component.id = math.createUUID();
             }
@@ -20026,6 +20183,7 @@ class Scene extends Component {
     _sectionPlaneDestroyed(sectionPlane) {
         delete this.sectionPlanes[sectionPlane.id];
         this.scene._sectionPlanesState.removeSectionPlane(sectionPlane._state);
+        this.scene.fire("sectionPlaneDestroyed", sectionPlane, true /* Don't retain event */);
         this._needRecompile = true;
     }
 
@@ -20125,6 +20283,28 @@ class Scene extends Component {
             this._numColorizedObjects--;
         }
         this._colorizedObjectIds = null; // Lazy regenerate
+    }
+
+    _objectOpacityUpdated(entity, opacityUpdated) {
+        if (opacityUpdated) {
+            this.opacityObjects[entity.id] = entity;
+            this._numOpacityObjects++;
+        } else {
+            delete this.opacityObjects[entity.id];
+            this._numOpacityObjects--;
+        }
+        this._opacityObjectIds = null; // Lazy regenerate
+    }
+
+    _objectOffsetUpdated(entity, offset) {
+        if (!offset || offset[0] === 0 && offset[1] === 0 && offset[2] === 0) {
+            this.offsetObjects[entity.id] = entity;
+            this._numOffsetObjects++;
+        } else {
+            delete this.offsetObjects[entity.id];
+            this._numOffsetObjects--;
+        }
+        this._offsetObjectIds = null; // Lazy regenerate
     }
 
     _webglContextLost() {
@@ -20398,6 +20578,30 @@ class Scene extends Component {
             this._colorizedObjectIds = Object.keys(this.colorizedObjects);
         }
         return this._colorizedObjectIds;
+    }
+
+    /**
+     * Gets the IDs of the {@link Entity}s in {@link Scene#opacityObjects}.
+     *
+     * @type {String[]}
+     */
+    get opacityObjectIds() {
+        if (!this._opacityObjectIds) {
+            this._opacityObjectIds = Object.keys(this.opacityObjects);
+        }
+        return this._opacityObjectIds;
+    }
+
+    /**
+     * Gets the IDs of the {@link Entity}s in {@link Scene#offsetObjects}.
+     *
+     * @type {String[]}
+     */
+    get offsetObjectIds() {
+        if (!this._offsetObjectIds) {
+            this._offsetObjectIds = Object.keys(this.offsetObjects);
+        }
+        return this._offsetObjectIds;
     }
 
     /**
@@ -20872,7 +21076,7 @@ class Scene extends Component {
      *         var worldNormal = pickResult.worldNormal; // Float32Array containing the interpolated World-space normal vector at the picked position on the triangle
      *         var uv = pickResult.uv; // Float32Array containing the interpolated UV coordinates at the picked position on the triangle
      *
-     *     } else if (pickResult.worldPos) {
+     *     } else if (pickResult.worldPos && pickResult.worldNormal) {
      *
      *         // Picked a point and normal on the entity surface
      *
@@ -20911,20 +21115,23 @@ class Scene extends Component {
      *           var origin = pickResult.origin; // Float32Array containing the World-space ray origin
      *           var direction = pickResult.direction; // Float32Array containing the World-space ray direction
      *
-     *     } else if (pickResult.worldPos) {
+     *     } else if (pickResult.worldPos && pickResult.worldNormal) {
      *
      *         // Picked a point and normal on the entity surface
      *
      *         var worldPos = pickResult.worldPos; // Float32Array containing the picked World-space position on the Entity surface
      *         var worldNormal = pickResult.worldNormal; // Float32Array containing the picked World-space normal vector on the Entity Surface
      *     }
+     * }
      *  ````
      *
      * @param {*} params Picking parameters.
      * @param {Boolean} [params.pickSurface=false] Whether to find the picked position on the surface of the Entity.
+     * @param {Boolean} [params.pickSurfaceNormal=false] Whether to find the picked normal on the surface of the Entity. Only works if ````pickSurface```` is given.
      * @param {Number[]} [params.canvasPos] Canvas-space coordinates. When ray-picking, this will override the **origin** and ** direction** parameters and will cause the ray to be fired through the canvas at this position, directly along the negative View-space Z-axis.
      * @param {Number[]} [params.origin] World-space ray origin when ray-picking. Ignored when canvasPos given.
      * @param {Number[]} [params.direction] World-space ray direction when ray-picking. Also indicates the length of the ray. Ignored when canvasPos given.
+     * @param {Number[]} [params.matrix] 4x4 transformation matrix to define the World-space ray origin and direction, as an alternative to ````origin```` and ````direction````.
      * @param {String[]} [params.includeEntities] IDs of {@link Entity}s to restrict picking to. When given, ignores {@link Entity}s whose IDs are not in this list.
      * @param {String[]} [params.excludeEntities] IDs of {@link Entity}s to ignore. When given, will pick *through* these {@link Entity}s, as if they were not there.
      * @param {PickResult} [pickResult] Holds the results of the pick attempt. Will use the Scene's singleton PickResult if you don't supply your own.
@@ -20941,8 +21148,8 @@ class Scene extends Component {
 
         params.pickSurface = params.pickSurface || params.rayPick; // Backwards compatibility
 
-        if (!params.canvasPos && (!params.origin || !params.direction)) {
-            this.warn("picking without canvasPos or ray origin and direction");
+        if (!params.canvasPos && !params.matrix && (!params.origin || !params.direction)) {
+            this.warn("picking without canvasPos, matrix, or ray origin and direction");
         }
 
         const includeEntities = params.includeEntities || params.include; // Backwards compat
@@ -21258,6 +21465,20 @@ class Scene extends Component {
         });
     }
 
+    /**
+     * Batch-updates {@link Entity#offset} on {@link Entity}s that represent objects.
+     *
+     * An {@link Entity} represents an object when {@link Entity#isObject} is ````true````.
+     *
+     * @param {String[]} ids Array of {@link Entity#id} values.
+     * @param {Number[]} [offset] 3D offset vector.
+     */
+    setObjectsOffset(ids, offset) {
+        this._withEntities(ids, this.objects, entity => {
+            entity.offset = offset;
+        });
+    }
+
     _withEntities(ids, entities, callback) {
         if (utils.isString(ids)) {
             ids = [ids];
@@ -21298,6 +21519,7 @@ class Scene extends Component {
         this.highlightedObjects = null;
         this.selectedObjects = null;
         this.colorizedObjects = null;
+        this.opacityObjects = null;
         this.sectionPlanes = null;
         this.lights = null;
         this.lightMaps = null;
@@ -21972,35 +22194,2685 @@ class CameraFlightAnimation extends Component {
     get trail() {
         return this._trail;
     }
-}
-
-/**
- * @desc Controls a {@link Camera} with keyboard, mouse and touch input.
- *
- * Located for convenience at {@link Viewer#cameraControl}.
- *
- * Fires these events:
- *
- * @emits "hover" - pointer hovers over a new object
- * @emits "hoverSurface" - Hover continues over an object surface - fired continuously as mouse moves over an object
- * @emits "hoverOut"  - Hover has left the last object we were hovering over
- * @emits "hoverOff" - Hover continues over empty space - fired continuously as mouse moves over nothing
- * @emits "picked" - Clicked or tapped object
- * @emits "pickedSurface" -  Clicked or tapped object, with event containing surface intersection details
- * @emits "doublePicked" - Double-clicked or double-tapped object
- * @emits "doublePickedSurface" - Double-clicked or double-tapped object, with event containing surface intersection details
- * @emits "pickedNothing" - Clicked or tapped, but not on any objects
- * @emits "doublePickedNothing" - Double-clicked or double-tapped, but not on any objects
- * @emits "rightClick" - Right-click
- */
-class CameraControl extends Component {
 
     /**
      * @private
      */
-    get type() {
-        return "CameraControl";
+    destroy() {
+        this.stop();
+        super.destroy();
     }
+}
+
+const screenPos = math.vec4();
+const viewPos = math.vec4();
+const worldPos = math.vec4();
+const tempVec3a = math.vec3();
+
+/**
+ * @private
+ */
+class PanController {
+
+    constructor(scene) {
+
+        this._scene = scene;
+        this._inverseProjectMat = math.mat4();
+        this._transposedProjectMat = math.mat4();
+        this._inverseViewMat = math.mat4();
+        this._projMatDirty = true;
+        this._viewMatDirty = true;
+        this._sceneDiagSizeDirty = true;
+        this._sceneDiagSize = 1;
+
+        this._onCameraProjMatrix = this._scene.camera.on("projMatrix", () => {
+            this._projMatDirty = true;
+        });
+
+        this._onCameraViewMatrix = this._scene.camera.on("viewMatrix", () => {
+            this._viewMatDirty = true;
+        });
+
+        this._onSceneBoundary = this._scene.scene.on("boundary", () => {
+            this._sceneDiagSizeDirty = true;
+        });
+    }
+
+    _getInverseProjectMat() {
+        if (this._projMatDirty) {
+            math.inverseMat4(this._scene.camera.projMatrix, this._inverseProjectMat);
+        }
+        return this._inverseProjectMat;
+    }
+
+    _getTransposedProjectMat() {
+        if (this._projMatDirty) {
+            math.transposeMat4(this._scene.camera.projMatrix, this._transposedProjectMat);
+        }
+        return this._transposedProjectMat;
+    }
+
+    _getInverseViewMat() {
+        if (this._viewMatDirty) {
+            math.inverseMat4(this._scene.camera.viewMatrix, this._inverseViewMat);
+        }
+        return this._inverseViewMat;
+    }
+
+    _getSceneDiagSize() {
+        if (this._sceneDiagSizeDirty) {
+            this._sceneDiagSize = math.getAABB3Diag(this._scene.aabb);
+        }
+        return this._sceneDiagSize;
+    }
+
+    _unproject(canvasPos, screenZ, viewPos, worldPos) {
+        const canvas = this._scene.canvas.canvas;
+        const inverseProjMat = this._getInverseProjectMat();
+        const inverseViewMat = this._getInverseViewMat();
+        const halfCanvasWidth = canvas.offsetWidth / 2.0;
+        const halfCanvasHeight = canvas.offsetHeight / 2.0;
+        screenPos[0] = (canvasPos[0] - halfCanvasWidth) / halfCanvasWidth;
+        screenPos[1] = (canvasPos[1] - halfCanvasHeight) / halfCanvasHeight;
+        screenPos[2] = screenZ;
+        screenPos[3] = 1.0;
+        math.mulMat4v4(inverseProjMat, screenPos, viewPos);
+        math.mulVec3Scalar(viewPos, 1.0 / viewPos[3]); // Normalize homogeneous coord
+        viewPos[3] = 1.0;
+        viewPos[1] *= -1; // TODO: Why is this reversed?
+        math.mulMat4v4(inverseViewMat,viewPos, worldPos);
+    }
+
+    /**
+     * Pans the Camera towards the given 2D canvas coordinates.
+     * @param canvasPos
+     * @param dollyDist
+     */
+    dollyToCanvasPos(canvasPos, dollyDist) {
+
+        // Get last two columns of projection matrix
+        const transposedProjectMat = this._getTransposedProjectMat();
+        const Pt3 = transposedProjectMat.subarray(8, 12);
+        const Pt4 = transposedProjectMat.subarray(12);
+        const D = [0, 0, -this._getSceneDiagSize(), 1];
+        const screenZ = math.dotVec4(D, Pt3) / math.dotVec4(D, Pt4);
+
+        this._unproject(canvasPos, screenZ, viewPos, worldPos);
+
+        this.dollyToWorldPos(worldPos, dollyDist);
+    }
+
+    /**
+     * Pans the camera towards the given 3D World-space coordinates.
+     * @param worldPos
+     * @param dollyDist
+     */
+    dollyToWorldPos(worldPos, dollyDist) {
+        
+        const camera = this._scene.camera;
+        const eyeToWorldPosVec = math.subVec3(worldPos, camera.eye, tempVec3a);
+        
+        const dist = math.lenVec3(eyeToWorldPosVec);
+        
+        if (dist < dollyDist) {
+            return;
+        }
+        
+        math.normalizeVec3(eyeToWorldPosVec);
+        
+        const px = eyeToWorldPosVec[0] * dollyDist;
+        const py = eyeToWorldPosVec[1] * dollyDist;
+        const pz = eyeToWorldPosVec[2] * dollyDist;
+        
+        const eye = camera.eye;
+        const look = camera.look;
+        
+        camera.eye = [eye[0] + px, eye[1] + py, eye[2] + pz];
+        camera.look = [look[0] + px, look[1] + py, look[2] + pz];
+    }
+
+    destroy() {
+        this._scene.camera.off(this._onCameraProjMatrix);
+        this._scene.camera.off(this._onCameraViewMatrix);
+        this._scene.scene.off(this._onSceneBoundary);
+    }
+}
+
+/** @private */
+class PivotController {
+
+    /**
+     * Constructs a Pivoter.
+     * @param scene
+     */
+    constructor(scene) {
+
+        // Pivot math by: http://www.derschmale.com/
+
+        this._scene = scene;
+        this._pivotWorldPos = math.vec3();
+        this._cameraOffset = math.vec3();
+        this._azimuth = 0;
+        this._polar = 0;
+        this._radius = 0;
+        this._pivoting = false; // True while pivoting
+        this._shown = false;
+
+        this._pivotViewPos = math.vec4();
+        this._pivotProjPos = math.vec4();
+        this._pivotCanvasPos = math.vec2();
+        this._cameraDirty = true;
+
+        this._onViewMatrix = this._scene.camera.on("viewMatrix", () => {
+            this._cameraDirty = true;
+        });
+
+      this._onProjMatrix =   this._scene.camera.on("projMatrix", () => {
+            this._cameraDirty = true;
+        });
+
+       this._onTick =  this._scene.on("tick", () => {
+            this.updatePivotElement();
+        });
+    }
+
+    updatePivotElement() {
+
+        const camera = this._scene.camera;
+        const canvas = this._scene.canvas;
+
+        if (this._pivoting && this._cameraDirty) {
+
+            math.transformPoint3(camera.viewMatrix, this._pivotWorldPos, this._pivotViewPos);
+            this._pivotViewPos[3] = 1;
+            math.transformPoint4(camera.projMatrix, this._pivotViewPos, this._pivotProjPos);
+
+            const canvasAABB = canvas.boundary;
+            const canvasWidth = canvasAABB[2];
+            const canvasHeight = canvasAABB[3];
+
+            this._pivotCanvasPos[0] = Math.floor((1 + this._pivotProjPos[0] / this._pivotProjPos[3]) * canvasWidth / 2);
+            this._pivotCanvasPos[1] = Math.floor((1 - this._pivotProjPos[1] / this._pivotProjPos[3]) * canvasHeight / 2);
+
+            const canvasElem = canvas.canvas;
+            const canvasBoundingRect = canvasElem.getBoundingClientRect();
+
+            if (this._pivotElement) {
+                this._pivotElement.style.left = (Math.floor(canvasBoundingRect.left + this._pivotCanvasPos[0]) - 12) + "px";
+                this._pivotElement.style.top = (Math.floor(canvasBoundingRect.top + this._pivotCanvasPos[1]) - 12) + "px";
+            }
+            this._cameraDirty = false;
+        }
+    }
+
+    /**
+     * Sets the HTML DOM element that will represent the pivot position.
+     *
+     * @param pivotElement
+     */
+    setPivotElement(pivotElement) {
+        this._pivotElement = pivotElement;
+    }
+
+    /**
+     * Begins pivoting.
+     *
+     * @param {Number[]} worldPos The World-space pivot position.
+     */
+    startPivot(worldPos) {
+
+        if (worldPos) { // Use last pivotPoint by default
+            this._pivotWorldPos.set(worldPos);
+        }
+
+        const camera = this._scene.camera;
+
+        let lookat = math.lookAtMat4v(camera.eye, camera.look, camera.worldUp);
+        math.transformPoint3(lookat, this._pivotWorldPos, this._cameraOffset);
+
+        this._cameraOffset[2] += math.distVec3(camera.eye, this._pivotWorldPos);
+
+        lookat = math.inverseMat4(lookat);
+
+        const offset = math.transformVec3(lookat, this._cameraOffset);
+        const diff = math.vec3();
+
+        math.subVec3(camera.eye, this._pivotWorldPos, diff);
+        math.addVec3(diff, offset);
+
+        if (camera.zUp) {
+            const t = diff[1];
+            diff[1] = diff[2];
+            diff[2] = t;
+        }
+
+        this._radius = math.lenVec3(diff);
+        this._polar = Math.acos(diff[1] / this._radius);
+        this._azimuth = Math.atan2(diff[0], diff[2]);
+        this._pivoting = true;
+    }
+
+    /**
+     * Returns true if we are currently pivoting.
+     *
+     * @returns {boolean}
+     */
+    getPivoting() {
+        return this._pivoting;
+    }
+
+    /**
+     * Sets the position we're pivoting about.
+     *
+     * @param {Number[]} worldPos The new World-space pivot position.
+     */
+    setPivotPos(worldPos) {
+        this._pivotWorldPos.set(worldPos);
+    }
+
+    /**
+     * Gets the current position we're pivoting about.
+     * @returns {Number[]} The current World-space pivot position.
+     */
+    getPivotPos() {
+        return this._pivotWorldPos;
+    }
+
+    /**
+     * Continues to pivot.
+     *
+     * @param {Number} yawInc Yaw rotation increment.
+     * @param {Number} pitchInc Pitch rotation increment.
+     */
+    continuePivot(yawInc, pitchInc) {
+        if (!this._pivoting) {
+            return;
+        }
+        if (yawInc === 0 && pitchInc === 0) {
+            return;
+        }
+        const camera = this._scene.camera;
+        var dx = -yawInc;
+        const dy = -pitchInc;
+        if (camera.worldUp[2] === 1) {
+            dx = -dx;
+        }
+
+        this._azimuth += -dx * .01;
+        this._polar += dy * .01;
+        this._polar = math.clamp(this._polar, .001, Math.PI - .001);
+        const pos = [
+            this._radius * Math.sin(this._polar) * Math.sin(this._azimuth),
+            this._radius * Math.cos(this._polar),
+            this._radius * Math.sin(this._polar) * Math.cos(this._azimuth)
+        ];
+        if (camera.worldUp[2] === 1) {
+            const t = pos[1];
+            pos[1] = pos[2];
+            pos[2] = t;
+        }
+        // Preserve the eye->look distance, since in xeokit "look" is the point-of-interest, not the direction vector.
+        const eyeLookLen = math.lenVec3(math.subVec3(camera.look, camera.eye, math.vec3()));
+        math.addVec3(pos, this._pivotWorldPos);
+        let lookat = math.lookAtMat4v(pos, this._pivotWorldPos, camera.worldUp);
+        lookat = math.inverseMat4(lookat);
+        const offset = math.transformVec3(lookat, this._cameraOffset);
+        lookat[12] -= offset[0];
+        lookat[13] -= offset[1];
+        lookat[14] -= offset[2];
+        const zAxis = [lookat[8], lookat[9], lookat[10]];
+        camera.eye = [lookat[12], lookat[13], lookat[14]];
+        math.subVec3(camera.eye, math.mulVec3Scalar(zAxis, eyeLookLen), camera.look);
+        camera.up = [lookat[4], lookat[5], lookat[6]];
+        this.showPivot();
+    }
+
+    /**
+     * Shows the pivot position.
+     *
+     * Only works if we set an  HTML DOM element to represent the pivot position.
+     */
+    showPivot() {
+        if (this._shown) {
+            return;
+        }
+        if (this._hideTimeout !== null) {
+            window.clearTimeout(this._hideTimeout);
+            this._hideTimeout = null;
+        }
+        if (this._pivotElement) {
+            this.updatePivotElement();
+            this._pivotElement.style.visibility = "visible";
+            this._shown = true;
+            this._hideTimeout = window.setTimeout(() => {
+                this.hidePivot();
+            }, 1000);
+        }
+    }
+
+    /**
+     * Hides the pivot position.
+     *
+     * Only works if we set an  HTML DOM element to represent the pivot position.
+     */
+    hidePivot() {
+        if (!this._shown) {
+            return;
+        }
+        if (this._hideTimeout !== null) {
+            window.clearTimeout(this._hideTimeout);
+            this._hideTimeout = null;
+        }
+        if (this._pivotElement) {
+            this._pivotElement.style.visibility = "hidden";
+        }
+        this._shown = false;
+    }
+
+    /**
+     * Finishes pivoting.
+     */
+    endPivot() {
+        this._pivoting = false;
+    }
+
+    destroy() {
+        this._scene.camera.off(this._onViewMatrix);
+        this._scene.camera.off(this._onProjMatrix);
+        this._scene.off(this._onTick);
+    }
+}
+
+/**
+ *
+ * @private
+ */
+class PickController {
+
+    constructor(cameraControl, configs) {
+
+        this._scene = cameraControl.scene;
+
+        this._cameraControl = cameraControl;
+
+        this._scene.canvas.canvas.oncontextmenu = function (e) {
+            e.preventDefault();
+        };
+
+        this._configs = configs;
+
+        /**
+         * Set true to schedule picking of an Entity.
+         * @type {boolean}
+         */
+        this.schedulePickEntity = false;
+
+        /**
+         * Set true to schedule picking of a position on teh surface of an Entity.
+         * @type {boolean}
+         */
+        this.schedulePickSurface = false;
+
+        /**
+         * The canvas position at which to do the next scheduled pick.
+         * @type {Number[]}
+         */
+        this.pickCursorPos = math.vec2();
+
+        /**
+         * Will be true after picking to indicate that something was picked.
+         * @type {boolean}
+         */
+        this.picked = false;
+
+        /**
+         * Will be true after picking to indicate that a position on the surface of an Entity was picked.
+         * @type {boolean}
+         */
+        this.pickedSurface = false;
+
+        /**
+         * Will hold the PickResult after after picking.
+         * @type {PickResult}
+         */
+        this.pickResult = null;
+
+        this._lastPickedEntityId = null;
+
+        this._onTick = this._scene.on("tick", () => {
+            this.update();
+        });
+    }
+
+    /**
+     * Immediately attempts a pick, if scheduled.
+     */
+    update() {
+
+        if (!this._configs.pointerEnabled) {
+            return;
+        }
+
+        if (!this.schedulePickEntity && !this.schedulePickSurface) {
+            return;
+        }
+
+        this.picked = false;
+        this.pickedSurface = false;
+
+        if (this.schedulePickSurface || this._cameraControl.hasSubs("hoverSurface")) {
+            this.pickResult = this._scene.pick({
+                pickSurface: true,
+                pickSurfaceNormal: true,
+                canvasPos: this.pickCursorPos
+            });
+        } else { // schedulePickEntity == true
+            this.pickResult = this._scene.pick({
+                canvasPos: this.pickCursorPos
+            });
+        }
+
+        if (this.pickResult) {
+
+            this.picked = true;
+
+            const pickedEntityId = this.pickResult.entity.id;
+
+            if (this._lastPickedEntityId !== pickedEntityId) {
+                if (this._lastPickedEntityId !== undefined) {
+
+                    this._cameraControl.fire("hoverOut", {
+                        entity: this._scene.objects[this._lastPickedEntityId]
+                    }, true);
+                }
+                this._cameraControl.fire("hoverEnter", this.pickResult, true);
+                this._lastPickedEntityId = pickedEntityId;
+            }
+
+            this._cameraControl.fire("hover", this.pickResult, true);
+
+            if (this.pickResult.worldPos) {
+                this.pickedSurface = true;
+                this._cameraControl.fire("hoverSurface", this.pickResult, true);
+            }
+
+        } else {
+
+            if (this._lastPickedEntityId !== undefined) {
+                this._cameraControl.fire("hoverOut", {
+                    entity: this._scene.objects[this._lastPickedEntityId]
+                }, true);
+                this._lastPickedEntityId = undefined;
+            }
+
+            this._cameraControl.fire("hoverOff", {
+                canvasPos: this.pickCursorPos
+            }, true);
+        }
+
+        this.schedulePickEntity = false;
+        this.schedulePickSurface = false;
+    }
+
+    destroy() {
+        this._scene.off(this._onTick);
+    }
+}
+
+/**
+ * @private
+ */
+
+const canvasPos = math.vec2();
+
+const getCanvasPosFromEvent = function (event, canvasPos) {
+    if (!event) {
+        event = window.event;
+        canvasPos[0] = event.x;
+        canvasPos[1] = event.y;
+    } else {
+        let element = event.target;
+        let totalOffsetLeft = 0;
+        let totalOffsetTop = 0;
+        while (element.offsetParent) {
+            totalOffsetLeft += element.offsetLeft;
+            totalOffsetTop += element.offsetTop;
+            element = element.offsetParent;
+        }
+        canvasPos[0] = event.pageX - totalOffsetLeft;
+        canvasPos[1] = event.pageY - totalOffsetTop;
+    }
+    return canvasPos;
+};
+
+/**
+ * @private
+ */
+class MousePanRotateDollyHandler {
+
+    constructor(scene, controllers, configs, states, updates) {
+
+        this._scene = scene;
+
+        const pickController = controllers.pickController;
+
+        let lastX = 0;
+        let lastY = 0;
+        let lastXDown = 0;
+        let lastYDown = 0;
+        this._down = false;
+        let mouseDownMiddle;
+        let mouseDownRight;
+
+        let mouseDownPicked = false;
+        const pickedWorldPos = math.vec3();
+
+        const canvas = this._scene.canvas.canvas;
+
+        const keyDown = [];
+
+        document.addEventListener("keydown", this._documentKeyDownHandler = (e) => {
+            if (!(configs.active && configs.pointerEnabled) || (!scene.input.keyboardEnabled)) {
+                return;
+            }
+            if (!states.mouseover) {
+                return;
+            }
+            const keyCode = e.keyCode;
+            keyDown[keyCode] = true;
+        });
+
+        document.addEventListener("keyup", this._documentKeyUpHandler = (e) => {
+            if (!(configs.active && configs.pointerEnabled) || (!scene.input.keyboardEnabled)) {
+                return;
+            }
+            if (!states.mouseover) {
+                return;
+            }
+            const keyCode = e.keyCode;
+            keyDown[keyCode] = false;
+        });
+
+        canvas.addEventListener("mousedown", this._mouseDownHandler = (e) => {
+
+            if (!(configs.active && configs.pointerEnabled)) {
+                return;
+            }
+
+            this._down = true;
+
+            switch (e.which) {
+
+                case 1: // Left button
+
+                    if (keyDown[scene.input.KEY_SHIFT] || configs.planView) {
+
+                        canvas.style.cursor = "move";
+
+                        lastX = states.mouseCanvasPos[0];
+                        lastY = states.mouseCanvasPos[1];
+                        lastXDown = states.mouseCanvasPos[0];
+                        lastYDown = states.mouseCanvasPos[1];
+
+                        pickController.pickCursorPos = states.mouseCanvasPos;
+                        pickController.schedulePickSurface = true;
+                        pickController.update();
+
+                        if (pickController.picked && pickController.pickedSurface && pickController.pickResult) {
+                            mouseDownPicked = true;
+                            pickedWorldPos.set(pickController.pickResult.worldPos);
+                        } else {
+                            mouseDownPicked = false;
+                        }
+
+                    } else {
+                        canvas.style.cursor = "move";
+
+                        lastX = states.mouseCanvasPos[0];
+                        lastY = states.mouseCanvasPos[1];
+                        lastXDown = states.mouseCanvasPos[0];
+                        lastYDown = states.mouseCanvasPos[1];
+                    }
+
+                    break;
+
+                case 2: // Middle/both buttons
+
+                    mouseDownMiddle = true;
+
+                    if (!configs.panRightClick) {
+
+                        canvas.style.cursor = "move";
+
+                        lastX = states.mouseCanvasPos[0];
+                        lastY = states.mouseCanvasPos[1];
+                        lastXDown = states.mouseCanvasPos[0];
+                        lastYDown = states.mouseCanvasPos[1];
+                    }
+
+                    break;
+
+                case 3: // Right button
+
+                    mouseDownRight = true;
+
+                    if (configs.panRightClick) {
+
+                        canvas.style.cursor = "move";
+
+                        lastX = states.mouseCanvasPos[0];
+                        lastY = states.mouseCanvasPos[1];
+                        lastXDown = states.mouseCanvasPos[0];
+                        lastYDown = states.mouseCanvasPos[1];
+
+                        pickController.pickCursorPos = states.mouseCanvasPos;
+                        pickController.schedulePickSurface = true;
+                        pickController.update();
+
+                        if (pickController.picked && pickController.pickedSurface && pickController.pickResult) {
+                            mouseDownPicked = true;
+                            pickedWorldPos.set(pickController.pickResult.worldPos);
+                        } else {
+                            mouseDownPicked = false;
+                        }
+                    }
+
+                    break;
+            }
+        });
+
+        canvas.addEventListener("mousemove", this._mouseMoveHandler = (e) => {
+
+            if (!(configs.active && configs.pointerEnabled)) {
+                return;
+            }
+
+            if (!states.mouseover) {
+                return;
+            }
+
+            updates.inputFromMouse = true;
+
+            if (!this._down) {
+                return;
+            }
+
+            // Scaling drag-rotate to canvas boundary
+
+            const canvasBoundary = scene.canvas.boundary;
+            const canvasWidth = canvasBoundary[2] - canvasBoundary[0];
+            const canvasHeight = canvasBoundary[3] - canvasBoundary[1];
+            const x = states.mouseCanvasPos[0];
+            const y = states.mouseCanvasPos[1];
+
+            const panning = keyDown[scene.input.KEY_SHIFT] || configs.planView || (!configs.panRightClick && mouseDownMiddle) || (configs.panRightClick && mouseDownRight);
+
+            if (panning) {
+
+                const xPanDelta = (x - lastX);
+                const yPanDelta = (y - lastY);
+
+                const camera = scene.camera;
+
+                // We use only canvasHeight here so that aspect ratio does not distort speed
+
+                if (camera.projection === "perspective") {
+
+                    const depth = Math.abs(mouseDownPicked ? math.lenVec3(math.subVec3(pickedWorldPos, scene.camera.eye, [])) : scene.camera.eyeLookDist);
+                    const targetDistance = depth * Math.tan((camera.perspective.fov / 2) * Math.PI / 180.0);
+
+                    updates.panDeltaX += (1.5 * xPanDelta * targetDistance / canvasHeight);
+                    updates.panDeltaY += (1.5 * yPanDelta * targetDistance / canvasHeight);
+
+                } else {
+
+                    updates.panDeltaX += 0.5 * camera.ortho.scale * (xPanDelta / canvasHeight);
+                    updates.panDeltaY += 0.5 * camera.ortho.scale * (yPanDelta / canvasHeight);
+                }
+
+            } else {
+
+                if (!configs.planView) { // No rotating in plan-view mode
+
+                    updates.rotateDeltaY -= ((x - lastX) / canvasWidth) * configs.dragRotationRate / 2; // Full horizontal rotation
+                    updates.rotateDeltaX += ((y - lastY) / canvasHeight) * (configs.dragRotationRate / 4); // Half vertical rotation
+                }
+            }
+
+            lastX = x;
+            lastY = y;
+        });
+
+        document.addEventListener("mouseup", this._documentMouseUpHandler = (e) => {
+            if (!(configs.active && configs.pointerEnabled)) {
+                return;
+            }
+            switch (e.which) {
+                case 1: // Left button
+                    break;
+                case 2: // Middle/both buttons
+                    mouseDownMiddle = false;
+                    break;
+                case 3: // Right button
+                    mouseDownRight = false;
+                    break;
+            }
+            this._down = false;
+        });
+
+        canvas.addEventListener("mouseup", this._mouseUpHandler = (e) => {
+            if (!(configs.active && configs.pointerEnabled)) {
+                return;
+            }
+            switch (e.which) {
+                case 3: // Right button
+                    getCanvasPosFromEvent(e, canvasPos);
+                    const x = canvasPos[0];
+                    const y = canvasPos[1];
+                    if (Math.abs(x - lastXDown) < 3 && Math.abs(y - lastYDown) < 3) {
+                        controllers.cameraControl.fire("rightClick", { // For context menus
+                            canvasPos: canvasPos,
+                            event: e
+                        }, true);
+                    }
+                    break;
+            }
+            canvas.style.removeProperty("cursor");
+        });
+
+        canvas.addEventListener("mouseenter", this._mouseEnterHandler = () => {
+            if (!(configs.active && configs.pointerEnabled)) {
+                return;
+            }
+
+            this._down = false;
+        });
+
+        canvas.addEventListener("mouseleave", this._mouseLeaveHandler = () => {
+
+            if (!(configs.active && configs.pointerEnabled)) {
+                return;
+            }
+
+            updates.panDeltaX = 0;
+            updates.panDeltaY = 0;
+            updates.rotateDeltaX = 0;
+            updates.rotateDeltaY = 0;
+
+            this._down = false;
+        });
+
+        const maxElapsed = 1/20;
+        const minElapsed = 1/60;
+
+        let secsNowLast = null;
+
+        canvas.addEventListener("wheel", this._mouseWheelHandler = (e) => {
+            if (!(configs.active && configs.pointerEnabled)) {
+                return;
+            }
+            const secsNow = performance.now() / 1000.0;
+            var secsElapsed = (secsNowLast !== null) ? (secsNow - secsNowLast) : 0;
+            secsNowLast = secsNow;
+            if (secsElapsed > maxElapsed) {
+                secsElapsed = maxElapsed;
+            }
+            if (secsElapsed < minElapsed) {
+                secsElapsed = minElapsed;
+            }
+            const delta = Math.max(-1, Math.min(1, -e.deltaY * 40));
+            if (delta === 0) {
+                return;
+            }
+            const normalizedDelta = delta / Math.abs(delta);
+            updates.dollyDelta += -normalizedDelta * secsElapsed * configs.mouseWheelDollyRate;
+            e.preventDefault();
+        });
+    }
+
+    reset() {
+        this._down = false;
+    }
+
+    destroy() {
+
+        const canvas = this._scene.canvas.canvas;
+
+        document.removeEventListener("keydown", this._documentKeyDownHandler);
+        document.removeEventListener("keyup", this._documentKeyUpHandler);
+        canvas.removeEventListener("mousedown", this._mouseDownHandler);
+        canvas.removeEventListener("mousemove", this._mouseMoveHandler);
+        document.removeEventListener("mouseup", this._documentMouseUpHandler);
+        canvas.removeEventListener("mouseup", this._mouseUpHandler);
+        canvas.removeEventListener("mouseenter", this._mouseEnterHandler);
+        canvas.removeEventListener("mouseleave", this._mouseLeaveHandler);
+        canvas.removeEventListener("wheel", this._mouseWheelHandler);
+    }
+}
+
+const center = math.vec3();
+const tempVec3a$1 = math.vec3();
+const tempVec3b$1 = math.vec3();
+const tempVec3c$1 = math.vec3();
+const tempVec3d$1 = math.vec3();
+
+const tempCameraTarget = {
+    eye: math.vec3(),
+    look: math.vec3(),
+    up: math.vec3()
+};
+
+/**
+ * @private
+ */
+class KeyboardAxisViewHandler {
+
+    constructor(scene, controllers, configs, states, updates) {
+
+        this._scene = scene;
+        const input = scene.input;
+
+        const camera = scene.camera;
+
+        document.addEventListener("keydown", this._documentKeyDownHandler = (e) => {
+
+            if (!(configs.active && configs.pointerEnabled) || (!scene.input.keyboardEnabled)) {
+                return;
+            }
+
+            if (!states.mouseover) {
+                return;
+            }
+
+            const keyCode = e.keyCode;
+
+            if (keyCode !== input.KEY_NUM_1 && keyCode !== input.KEY_NUM_2 && keyCode !== input.KEY_NUM_3 &&
+                keyCode !== input.KEY_NUM_4 && keyCode !== input.KEY_NUM_5 && keyCode !== input.KEY_NUM_6) {
+                return;
+            }
+
+            const aabb = scene.aabb;
+            const diag = math.getAABB3Diag(aabb);
+
+            math.getAABB3Center(aabb, center);
+
+            const dist = Math.abs(diag / Math.tan(controllers.cameraFlight.fitFOV * math.DEGTORAD));
+
+            switch (keyCode) {
+
+                case input.KEY_NUM_1: // Right
+                    tempCameraTarget.eye.set(math.addVec3(center, math.mulVec3Scalar(camera.worldRight, dist, tempVec3a$1), tempVec3d$1));
+                    tempCameraTarget.look.set(center);
+                    tempCameraTarget.up.set(camera.worldUp);
+                    break;
+
+                case input.KEY_NUM_2: // Back
+                    tempCameraTarget.eye.set(math.addVec3(center, math.mulVec3Scalar(camera.worldForward, dist, tempVec3a$1), tempVec3d$1));
+                    tempCameraTarget.look.set(center);
+                    tempCameraTarget.up.set(camera.worldUp);
+                    break;
+
+                case input.KEY_NUM_3: // Left
+                    tempCameraTarget.eye.set(math.addVec3(center, math.mulVec3Scalar(camera.worldRight, -dist, tempVec3a$1), tempVec3d$1));
+                    tempCameraTarget.look.set(center);
+                    tempCameraTarget.up.set(camera.worldUp);
+                    break;
+
+                case input.KEY_NUM_4: // Front
+                    tempCameraTarget.eye.set(math.addVec3(center, math.mulVec3Scalar(camera.worldForward, -dist, tempVec3a$1), tempVec3d$1));
+                    tempCameraTarget.look.set(center);
+                    tempCameraTarget.up.set(camera.worldUp);
+                    break;
+
+                case input.KEY_NUM_5: // Top
+                    tempCameraTarget.eye.set(math.addVec3(center, math.mulVec3Scalar(camera.worldUp, dist, tempVec3a$1), tempVec3d$1));
+                    tempCameraTarget.look.set(center);
+                    tempCameraTarget.up.set(math.normalizeVec3(math.mulVec3Scalar(camera.worldForward, 1, tempVec3b$1), tempVec3c$1));
+                    break;
+
+                case input.KEY_NUM_6: // Bottom
+                    tempCameraTarget.eye.set(math.addVec3(center, math.mulVec3Scalar(camera.worldUp, -dist, tempVec3a$1), tempVec3d$1));
+                    tempCameraTarget.look.set(center);
+                    tempCameraTarget.up.set(math.normalizeVec3(math.mulVec3Scalar(camera.worldForward, -1, tempVec3b$1)));
+                    break;
+
+                default:
+                    return;
+            }
+
+            if ((!configs.firstPerson) && configs.followPointer) {
+                controllers.pivotController.startPivot(center);
+            }
+
+            if (controllers.cameraFlight.duration > 0) {
+                controllers.cameraFlight.flyTo(tempCameraTarget, () => {
+                    if (controllers.pivotController.getPivoting() && configs.followPointer) {
+                        controllers.pivotController.showPivot();
+                    }
+                });
+
+            } else {
+                controllers.cameraFlight.jumpTo(tempCameraTarget);
+                if (controllers.pivotController.getPivoting() && configs.followPointer) {
+                    controllers.pivotController.showPivot();
+                }
+            }
+        });
+    }
+
+    reset() {
+    }
+
+    destroy() {
+        document.removeEventListener("keydown", this._documentKeyDownHandler);
+    }
+}
+
+/**
+ * @private
+ */
+class MousePickHandler {
+
+    constructor(scene, controllers, configs, states, updates) {
+
+        this._scene = scene;
+
+        const pickController = controllers.pickController;
+        const pivotController = controllers.pivotController;
+        const cameraControl = controllers.cameraControl;
+
+        this._clicks = 0;
+        this._timeout = null;
+        this._lastPickedEntityId = null;
+
+        let leftDown = false;
+        let rightDown = false;
+
+        const canvas = this._scene.canvas.canvas;
+
+        const flyCameraTo = (pickResult) => {
+            let pos;
+            if (pickResult && pickResult.worldPos) {
+                pos = pickResult.worldPos;
+            }
+            const aabb = pickResult ? pickResult.entity.aabb : scene.aabb;
+            if (pos) { // Fly to look at point, don't change eye->look dist
+                const camera = scene.camera;
+                const diff = math.subVec3(camera.eye, camera.look, []);
+                controllers.cameraFlight.flyTo({
+                    // look: pos,
+                    // eye: xeokit.math.addVec3(pos, diff, []),
+                    // up: camera.up,
+                    aabb: aabb
+                });
+                // TODO: Option to back off to fit AABB in view
+            } else {// Fly to fit target boundary in view
+                controllers.cameraFlight.flyTo({
+                    aabb: aabb
+                });
+            }
+        };
+
+        canvas.addEventListener("mousemove", this._canvasMouseMoveHandler = (e) => {
+
+            if (!(configs.active && configs.pointerEnabled)) {
+                return;
+            }
+
+            if (leftDown || rightDown) {
+                return;
+            }
+
+            const hoverSubs = cameraControl.hasSubs("hover");
+            const hoverOutSubs = cameraControl.hasSubs("hoverOut");
+            const hoverOffSubs = cameraControl.hasSubs("hoverOff");
+            const hoverSurfaceSubs = cameraControl.hasSubs("hoverSurface");
+
+            if (hoverSubs || hoverOutSubs || hoverOffSubs || hoverSurfaceSubs) {
+
+                pickController.pickCursorPos = states.mouseCanvasPos;
+                pickController.schedulePickEntity = true;
+                pickController.schedulePickSurface = hoverSurfaceSubs;
+
+                pickController.update();
+
+                if (pickController.pickResult) {
+
+                    const pickedEntityId = pickController.pickResult.entity.id;
+
+                    if (this._lastPickedEntityId !== pickedEntityId) {
+
+                        if (this._lastPickedEntityId !== undefined) {
+
+                            cameraControl.fire("hoverOut", { // Hovered off an entity
+                                entity: scene.objects[this._lastPickedEntityId]
+                            }, true);
+                        }
+
+                        cameraControl.fire("hoverEnter", pickController.pickResult, true); // Hovering over a new entity
+
+                        this._lastPickedEntityId = pickedEntityId;
+                    }
+
+                    cameraControl.fire("hover", pickController.pickResult, true);
+
+                    if (pickController.pickResult.worldPos) { // Hovering the surface of an entity
+                        cameraControl.fire("hoverSurface", pickController.pickResult, true);
+                    }
+
+                } else {
+
+                    if (this._lastPickedEntityId !== undefined) {
+
+                        cameraControl.fire("hoverOut", { // Hovered off an entity
+                            entity: scene.objects[this._lastPickedEntityId]
+                        }, true);
+
+                        this._lastPickedEntityId = undefined;
+                    }
+
+                    cameraControl.fire("hoverOff", { // Not hovering on any entity
+                        canvasPos: pickController.pickCursorPos
+                    }, true);
+                }
+            }
+        });
+
+        canvas.addEventListener('mousedown', this._canvasMouseDownHandler = (e) => {
+
+            if (e.which === 1) {
+                leftDown = true;
+            }
+
+            if (e.which === 3) {
+                rightDown = true;
+            }
+
+            const leftButtonDown = (e.which === 1);
+
+            if (!leftButtonDown) {
+                return;
+            }
+
+            if (!(configs.active && configs.pointerEnabled)) {
+                return;
+            }
+
+            // Left mouse button down to start pivoting
+
+            states.mouseDownClientX = e.clientX;
+            states.mouseDownClientY = e.clientY;
+            states.mouseDownCursorX = states.mouseCanvasPos[0];
+            states.mouseDownCursorY = states.mouseCanvasPos[1];
+
+            if ((!configs.firstPerson) && configs.followPointer) {
+
+                pickController.pickCursorPos = states.mouseCanvasPos;
+                pickController.schedulePickSurface = true;
+
+                pickController.update();
+
+                if (e.which === 1) {// Left button
+                    if (pickController.pickResult) {
+                        pivotController.startPivot(pickController.pickResult.worldPos);
+                    } else {
+                        pivotController.startPivot(); // Continue to use last pivot point
+                    }
+                }
+            }
+        });
+
+        document.addEventListener('mouseup', this._documentMouseUpHandler = (e) => {
+
+            if (e.which === 1) {
+                leftDown = false;
+            }
+
+            if (e.which === 3) {
+                rightDown = false;
+            }
+        });
+
+        canvas.addEventListener('mouseup', this._canvasMouseUpHandler = (e) => {
+
+            if (!(configs.active && configs.pointerEnabled)) {
+                return;
+            }
+
+            const leftButtonUp = (e.which === 1);
+
+            if (!leftButtonUp) {
+                return;
+            }
+
+            // Left mouse button up to possibly pick or double-pick
+
+            pivotController.hidePivot();
+
+            if (Math.abs(e.clientX - states.mouseDownClientX) > 3 || Math.abs(e.clientY - states.mouseDownClientY) > 3) {
+                return;
+            }
+
+            const pickedSubs = cameraControl.hasSubs("picked");
+            const pickedNothingSubs = cameraControl.hasSubs("pickedNothing");
+            const pickedSurfaceSubs = cameraControl.hasSubs("pickedSurface");
+            const doublePickedSubs = cameraControl.hasSubs("doublePicked");
+            const doublePickedSurfaceSubs = cameraControl.hasSubs("doublePickedSurface");
+            const doublePickedNothingSubs = cameraControl.hasSubs("doublePickedNothing");
+
+            if ((!configs.doublePickFlyTo) &&
+                (!doublePickedSubs) &&
+                (!doublePickedSurfaceSubs) &&
+                (!doublePickedNothingSubs)) {
+
+                //  Avoid the single/double click differentiation timeout
+
+                if (pickedSubs || pickedNothingSubs || pickedSurfaceSubs) {
+
+                    pickController.pickCursorPos = states.mouseCanvasPos;
+                    pickController.schedulePickSurface = pickedSurfaceSubs;
+                    pickController.update();
+
+                    if (pickController.pickResult) {
+
+                        cameraControl.fire("picked", pickController.pickResult, true);
+
+                        if (pickController.pickedSurface) {
+                            cameraControl.fire("pickedSurface", pickController.pickResult, true);
+                        }
+                    } else {
+                        cameraControl.fire("pickedNothing", {
+                            canvasPos: states.mouseCanvasPos
+                        }, true);
+                    }
+                }
+
+                this._clicks = 0;
+
+                return;
+            }
+
+            this._clicks++;
+
+            if (this._clicks === 1) { // First click
+
+                const mouseCanvasPos = states.mouseCanvasPos.slice();
+
+                this._timeout = setTimeout(() => {
+
+                    pickController.pickCursorPos = mouseCanvasPos;
+                    pickController.schedulePickEntity = configs.doublePickFlyTo;
+                    pickController.schedulePickSurface = pickedSurfaceSubs;
+                    pickController.update();
+
+                    if (pickController.pickResult) {
+
+                        cameraControl.fire("picked", pickController.pickResult, true);
+
+                        if (pickController.pickedSurface) {
+
+                            cameraControl.fire("pickedSurface", pickController.pickResult, true);
+
+                            if ((!configs.firstPerson) && configs.followPointer) {
+                                controllers.pivotController.startPivot(pickController.pickResult.worldPos);
+                                controllers.pivotController.showPivot();
+                            }
+                        }
+                    } else {
+                        cameraControl.fire("pickedNothing", {
+                            canvasPos: states.mouseCanvasPos
+                        }, true);
+                    }
+
+                    this._clicks = 0;
+
+                }, 250);  // FIXME: Too short for track pads
+
+            } else { // Second click
+
+                if (this._timeout !== null) {
+                    window.clearTimeout(this._timeout);
+                    this._timeout = null;
+                }
+
+                pickController.pickCursorPos = states.mouseCanvasPos;
+                pickController.schedulePickEntity = configs.doublePickFlyTo;
+                pickController.schedulePickSurface = pickController.schedulePickEntity && doublePickedSurfaceSubs;
+                pickController.update();
+
+                if (pickController.pickResult) {
+
+                    cameraControl.fire("doublePicked", pickController.pickResult, true);
+
+                    if (pickController.pickedSurface) {
+                        cameraControl.fire("doublePickedSurface", pickController.pickResult, true);
+                    }
+
+                    if (configs.doublePickFlyTo) {
+
+                        flyCameraTo(pickController.pickResult);
+
+                        if ((!configs.firstPerson) && configs.followPointer) {
+
+                            const pickedEntityAABB = pickController.pickResult.entity.aabb;
+                            const pickedEntityCenterPos = math.getAABB3Center(pickedEntityAABB);
+
+                            controllers.pivotController.startPivot(pickedEntityCenterPos);
+                            controllers.pivotController.showPivot();
+                        }
+                    }
+
+                } else {
+
+                    cameraControl.fire("doublePickedNothing", {
+                        canvasPos: states.mouseCanvasPos
+                    }, true);
+
+                    if (configs.doublePickFlyTo) {
+
+                        flyCameraTo();
+
+                        if ((!configs.firstPerson) && configs.followPointer) {
+
+                            const sceneAABB = scene.aabb;
+                            const sceneCenterPos = math.getAABB3Center(sceneAABB);
+
+                            controllers.pivotController.startPivot(sceneCenterPos);
+                            controllers.pivotController.showPivot();
+                        }
+                    }
+                }
+
+                this._clicks = 0;
+            }
+        }, false);
+    }
+
+    reset() {
+        this._clicks = 0;
+        this._lastPickedEntityId = null;
+        if (this._timeout) {
+            window.clearTimeout(this._timeout);
+            this._timeout = null;
+        }
+    }
+
+    destroy() {
+        const canvas = this._scene.canvas.canvas;
+        canvas.removeEventListener("mousemove", this._canvasMouseMoveHandler);
+        canvas.removeEventListener("mousedown", this._canvasMouseDownHandler);
+        document.removeEventListener("mouseup", this._documentMouseUpHandler);
+        canvas.removeEventListener("mouseup", this._canvasMouseUpHandler);
+        if (this._timeout) {
+            window.clearTimeout(this._timeout);
+            this._timeout = null;
+        }
+    }
+}
+
+/**
+ * @private
+ */
+class KeyboardPanRotateDollyHandler {
+
+    constructor(scene, controllers, configs, states, updates) {
+
+        this._scene = scene;
+        const input = scene.input;
+
+        const keyDown = [];
+
+        const canvas = scene.canvas.canvas;
+
+        document.addEventListener("keydown", this._documentKeyDownHandler = (e) => {
+            if (!(configs.active && configs.pointerEnabled) || (!scene.input.keyboardEnabled)) {
+                return;
+            }
+            if (!states.mouseover) {
+                return;
+            }
+            const keyCode = e.keyCode;
+            keyDown[keyCode] = true;
+
+            if (keyCode === input.KEY_SHIFT) {
+                canvas.style.cursor = "move";
+            }
+        });
+
+        document.addEventListener("keyup", this._documentKeyUpHandler = (e) => {
+            if (!(configs.active && configs.pointerEnabled) || (!scene.input.keyboardEnabled)) {
+                return;
+            }
+            if (!states.mouseover) {
+                return;
+            }
+            const keyCode = e.keyCode;
+            keyDown[keyCode] = false;
+
+            if (keyCode === input.KEY_SHIFT) {
+                canvas.style.cursor = "default";
+            }
+        });
+
+        this._onTick = scene.on("tick", (e) => {
+
+            if (!(configs.active && configs.pointerEnabled) || (!scene.input.keyboardEnabled)) {
+                return;
+            }
+
+            if (!states.mouseover) {
+                return;
+            }
+
+
+            const elapsedSecs = (e.deltaTime / 1000.0);
+
+            //-------------------------------------------------------------------------------------------------
+            // Keyboard rotation
+            //-------------------------------------------------------------------------------------------------
+
+            if (!configs.planView) {
+
+                const leftArrowKey = keyDown[input.KEY_LEFT_ARROW];
+                const rightArrowKey = keyDown[input.KEY_RIGHT_ARROW];
+                const upArrowKey = keyDown[input.KEY_UP_ARROW];
+                const downArrowKey = keyDown[input.KEY_DOWN_ARROW];
+
+                const orbitDelta = elapsedSecs * configs.keyboardRotationRate;
+
+                if (leftArrowKey || rightArrowKey || upArrowKey || downArrowKey) {
+
+                    if ((!configs.firstPerson) && configs.followPointer) {
+                        controllers.pivotController.startPivot();
+                    }
+                    if (rightArrowKey) {
+                        updates.rotateDeltaY -= orbitDelta;
+
+                    } else if (leftArrowKey) {
+                        updates.rotateDeltaY += orbitDelta;
+                    }
+                    if (downArrowKey) {
+                        updates.rotateDeltaX += orbitDelta;
+
+                    } else if (upArrowKey) {
+                        updates.rotateDeltaX -= orbitDelta;
+                    }
+                }
+
+                let rotateLeft;
+                let rotateRight;
+
+                if (configs.keyboardLayout === 'azerty') {
+                    rotateLeft = keyDown[input.KEY_A];
+                    rotateRight = keyDown[input.KEY_E];
+
+                } else {
+                    rotateLeft = keyDown[input.KEY_Q];
+                    rotateRight = keyDown[input.KEY_E];
+                }
+
+                if (rotateRight || rotateLeft) {
+                    if (rotateLeft) {
+                        updates.rotateDeltaY += orbitDelta;
+
+                    } else if (rotateRight) {
+                        updates.rotateDeltaY -= orbitDelta;
+                    }
+
+                    if ((!configs.firstPerson) && configs.followPointer) {
+                        controllers.pivotController.startPivot();
+                    }
+                }
+            }
+
+            //-------------------------------------------------------------------------------------------------
+            // Keyboard panning
+            //-------------------------------------------------------------------------------------------------
+
+            if (!keyDown[input.KEY_CTRL] && !keyDown[input.KEY_ALT]) {
+
+                const addKey = keyDown[input.KEY_ADD];
+                const subtractKey = keyDown[input.KEY_SUBTRACT];
+
+                if (addKey || subtractKey) {
+
+                    const dollyDelta = elapsedSecs * configs.keyboardDollyRate;
+
+                    if ((!configs.firstPerson) && configs.followPointer) {
+                        controllers.pivotController.startPivot();
+                    }
+                    if (subtractKey) {
+                        updates.dollyDelta += dollyDelta;
+                    } else if (addKey) {
+                        updates.dollyDelta -= dollyDelta;
+                    }
+                }
+            }
+
+            let panForwardKey;
+            let panBackKey;
+            let panLeftKey;
+            let panRightKey;
+            let panUpKey;
+            let panDownKey;
+
+            const panDelta = (keyDown[input.KEY_ALT] ? 0.3 : 1.0) * elapsedSecs * configs.keyboardPanRate; // ALT for slower pan rate
+
+            if (configs.keyboardLayout === 'azerty') {
+
+                panForwardKey = keyDown[input.KEY_Z];
+                panBackKey = keyDown[input.KEY_S];
+                panLeftKey = keyDown[input.KEY_Q];
+                panRightKey = keyDown[input.KEY_D];
+                panUpKey = keyDown[input.KEY_W];
+                panDownKey = keyDown[input.KEY_X];
+
+            } else {
+
+                panForwardKey = keyDown[input.KEY_W];
+                panBackKey = keyDown[input.KEY_S];
+                panLeftKey = keyDown[input.KEY_A];
+                panRightKey = keyDown[input.KEY_D];
+                panUpKey = keyDown[input.KEY_Z];
+                panDownKey = keyDown[input.KEY_X];
+            }
+
+            if (panForwardKey || panBackKey || panLeftKey || panRightKey || panUpKey || panDownKey) {
+
+                if ((!configs.firstPerson) && configs.followPointer) {
+                    controllers.pivotController.startPivot();
+                }
+
+                if (panDownKey) {
+                    updates.panDeltaY += panDelta;
+
+                } else if (panUpKey) {
+                    updates.panDeltaY += -panDelta;
+                }
+
+                if (panRightKey) {
+                    updates.panDeltaX += -panDelta;
+
+                } else if (panLeftKey) {
+                    updates.panDeltaX += panDelta;
+                }
+
+                if (panBackKey) {
+                    updates.panDeltaZ += panDelta;
+
+                } else if (panForwardKey) {
+                    updates.panDeltaZ += -panDelta;
+                }
+            }
+        });
+    }
+
+    reset() {
+    }
+
+    destroy() {
+
+        this._scene.off(this._onTick);
+
+        document.removeEventListener("keydown", this._documentKeyDownHandler);
+        document.removeEventListener("keyup", this._documentKeyUpHandler);
+    }
+}
+
+const SCALE_DOLLY_EACH_FRAME = 2; // Recalculate dolly speed for eye->target distance on each Nth frame
+const EPSILON = 0.001;
+const tempVec3$2 = math.vec3();
+
+/**
+ * Handles camera updates on each "tick" that were scheduled by the various controllers.
+ *
+ * @private
+ */
+class CameraUpdater {
+
+    constructor(scene, controllers, configs, states, updates) {
+
+        this._scene = scene;
+        const camera = scene.camera;
+        const pivotController = controllers.pivotController;
+        const panController = controllers.panController;
+
+        let countDown = SCALE_DOLLY_EACH_FRAME; // Decrements on each tick
+        let dollyDistFactor = 1.0; // Calculated when countDown is zero
+
+        this._onTick = scene.on("tick", (e) => {
+
+            if (!(configs.active && configs.pointerEnabled)) {
+                return;
+            }
+
+            let cursorType = "default";
+
+            const deltaTimeMilliSecs = e.deltaTime;
+
+            //----------------------------------------------------------------------------------------------------------
+            // Dolly decay
+            //------------------------------------------------------------------------------------  ----------------------
+
+            if (Math.abs(updates.dollyDelta) < EPSILON) {
+                updates.dollyDelta = 0;
+            }
+
+            //----------------------------------------------------------------------------------------------------------
+            // Rotation decay
+            //----------------------------------------------------------------------------------------------------------
+
+            if (Math.abs(updates.rotateDeltaX) < EPSILON) {
+                updates.rotateDeltaX = 0;
+            }
+
+            if (Math.abs(updates.rotateDeltaY) < EPSILON) {
+                updates.rotateDeltaY = 0;
+            }
+
+            //----------------------------------------------------------------------------------------------------------
+            // Dolly speed eye->look scaling
+            //
+            // If pointer is over an object, then dolly speed is proportional to the distance to that object.
+            //
+            // If pointer is not over an object, then dolly speed is proportional to the distance to the last
+            // object the pointer was over. This is so that we can dolly to structures that may have gaps through
+            // which empty background shows, that the pointer may inadvertently be over. In these cases, we don't
+            // want dolly speed wildly varying depending on how accurately the user avoids the gaps with the pointer.
+            //----------------------------------------------------------------------------------------------------------
+
+            if (configs.firstPerson && (!configs.followPointer)) ; else if (--countDown <= 0) {
+
+                countDown = SCALE_DOLLY_EACH_FRAME;
+
+                if (updates.dollyDelta !== 0) {
+
+                    if (updates.rotateDeltaY === 0 && updates.rotateDeltaX === 0) {
+
+                        const pickResult = this._scene.pick({
+                            pickSurface: true,
+                            pickSurfaceNormal: false,
+                            canvasPos: states.mouseCanvasPos
+                        });
+
+                        if (pickResult && pickResult.worldPos) {
+                            const worldPos = pickResult.worldPos;
+                            pivotController.setPivotPos(worldPos);
+                            pivotController.hidePivot();
+                        } else {
+                            dollyDistFactor = 1.0;
+                        }
+                    }
+
+                    const dist = Math.abs(math.lenVec3(math.subVec3(pivotController.getPivotPos(), scene.camera.eye, tempVec3$2)));
+
+                    dollyDistFactor = dist / configs.dollyProximityThreshold;
+
+                    if (dollyDistFactor < configs.dollyMinSpeed) {
+                        dollyDistFactor = configs.dollyMinSpeed;
+                    }
+                }
+            }
+
+            let dollyDeltaForDist = (updates.dollyDelta * dollyDistFactor);
+
+            //----------------------------------------------------------------------------------------------------------
+            // Rotation
+            //----------------------------------------------------------------------------------------------------------
+
+            if (updates.rotateDeltaY !== 0 || updates.rotateDeltaX !== 0) {
+
+                if (pivotController.getPivoting() && configs.followPointer) {
+                    pivotController.continuePivot(updates.rotateDeltaY, updates.rotateDeltaX);
+                    pivotController.showPivot();
+
+                } else {
+
+                    if (updates.rotateDeltaX !== 0) {
+                        if (configs.firstPerson) {
+                            camera.pitch(-updates.rotateDeltaX);
+                        } else {
+                            camera.orbitPitch(updates.rotateDeltaX);
+                        }
+                    }
+
+                    if (updates.rotateDeltaY !== 0) {
+                        if (configs.firstPerson) {
+                            camera.yaw(updates.rotateDeltaY);
+                        } else {
+                            camera.orbitYaw(updates.rotateDeltaY);
+                        }
+                    }
+                }
+
+                updates.rotateDeltaX *= configs.rotationInertia;
+                updates.rotateDeltaY *= configs.rotationInertia;
+
+                cursorType = "grabbing";
+            }
+
+            //----------------------------------------------------------------------------------------------------------
+            // Panning
+            //----------------------------------------------------------------------------------------------------------
+
+            if (Math.abs(updates.panDeltaX) < EPSILON) {
+                updates.panDeltaX = 0;
+            }
+
+            if (Math.abs(updates.panDeltaY) < EPSILON) {
+                updates.panDeltaY = 0;
+            }
+
+            if (Math.abs(updates.panDeltaZ) < EPSILON) {
+                updates.panDeltaZ = 0;
+            }
+
+            if (updates.panDeltaX !== 0 || updates.panDeltaY !== 0 || updates.panDeltaZ !== 0) {
+
+                if (pivotController.getPivoting() && configs.followPointer) {
+                    pivotController.showPivot();
+                }
+
+                const vec = math.vec3();
+
+                vec[0] = updates.panDeltaX;
+                vec[1] = updates.panDeltaY;
+                vec[2] = updates.panDeltaZ;
+
+                let verticalEye;
+                let verticalLook;
+
+                if (configs.constrainVertical) {
+
+                    if (camera.xUp) {
+                        verticalEye = camera.eye[0];
+                        verticalLook = camera.look[0];
+                    } else if (camera.yUp) {
+                        verticalEye = camera.eye[1];
+                        verticalLook = camera.look[1];
+                    } else if (camera.zUp) {
+                        verticalEye = camera.eye[2];
+                        verticalLook = camera.look[2];
+                    }
+
+                    camera.pan(vec);
+
+                    const eye = camera.eye;
+                    const look = camera.look;
+
+                    if (camera.xUp) {
+                        eye[0] = verticalEye;
+                        look[0] = verticalLook;
+                    } else if (camera.yUp) {
+                        eye[1] = verticalEye;
+                        look[1] = verticalLook;
+                    } else if (camera.zUp) {
+                        eye[2] = verticalEye;
+                        look[2] = verticalLook;
+                    }
+
+                    camera.eye = eye;
+                    camera.look = look;
+
+                } else {
+                    camera.pan(vec);
+                }
+
+                cursorType = "grabbing";
+            }
+
+            updates.panDeltaX *= configs.panInertia;
+            updates.panDeltaY *= configs.panInertia;
+            updates.panDeltaZ *= configs.panInertia;
+
+            //----------------------------------------------------------------------------------------------------------
+            // Dollying
+            //----------------------------------------------------------------------------------------------------------
+
+            if (dollyDeltaForDist !== 0) {
+
+                if (dollyDeltaForDist < 0) {
+                    cursorType = "zoom-in";
+                } else {
+                    cursorType = "zoom-out";
+                }
+
+                if (configs.firstPerson) {
+
+                    let verticalEye;
+                    let verticalLook;
+
+                    if (configs.constrainVertical) {
+                        if (camera.xUp) {
+                            verticalEye = camera.eye[0];
+                            verticalLook = camera.look[0];
+                        } else if (camera.yUp) {
+                            verticalEye = camera.eye[1];
+                            verticalLook = camera.look[1];
+                        } else if (camera.zUp) {
+                            verticalEye = camera.eye[2];
+                            verticalLook = camera.look[2];
+                        }
+                    }
+
+                    if (updates.inputFromMouse && configs.followPointer) { // Using mouse input
+                        panController.dollyToCanvasPos(states.mouseCanvasPos, -dollyDeltaForDist);
+                    } else {
+                        camera.pan([0, 0, dollyDeltaForDist]);
+                    }
+
+                    if (configs.constrainVertical) {
+                        const eye = camera.eye;
+                        const look = camera.look;
+                        if (camera.xUp) {
+                            eye[0] = verticalEye;
+                            look[0] = verticalLook;
+                        } else if (camera.yUp) {
+                            eye[1] = verticalEye;
+                            look[1] = verticalLook;
+                        } else if (camera.zUp) {
+                            eye[2] = verticalEye;
+                            look[2] = verticalLook;
+                        }
+                        camera.eye = eye;
+                        camera.look = look;
+                    }
+
+                } else if (configs.planView) {
+
+                    if (updates.inputFromMouse && configs.followPointer) {
+
+                        // Pan-to-canvas pos works better for ortho
+
+                        if (dollyDeltaForDist > 0) {
+                            camera.pan([0, 0, dollyDeltaForDist]);
+                        } else {
+                            panController.dollyToWorldPos(pivotController.getPivotPos(), -dollyDeltaForDist);
+                        }
+                    } else {
+                        camera.pan([0, 0, dollyDeltaForDist]);
+                    }
+
+                } else { // Orbiting
+
+                    if (configs.followPointer) {
+                        panController.dollyToWorldPos(pivotController.getPivotPos(), -dollyDeltaForDist); // FIXME: What about when pivotPos undefined?
+                    } else {
+                        camera.zoom(dollyDeltaForDist);
+                    }
+                }
+
+                camera.ortho.scale = camera.ortho.scale + (.5 * dollyDeltaForDist);
+
+                updates.dollyDelta *= configs.dollyInertia;
+            }
+
+            document.body.style.cursor = cursorType;
+        });
+    }
+
+
+    destroy() {
+        this._scene.off(this._onTick);
+    }
+}
+
+/**
+ * @private
+ */
+class MouseMiscHandler {
+
+    constructor(scene, controllers, configs, states, updates) {
+
+        this._scene = scene;
+
+        const canvas = this._scene.canvas.canvas;
+
+        canvas.addEventListener("mouseenter", this._mouseEnterHandler = () => {
+            states.mouseover = true;
+        });
+
+        canvas.addEventListener("mouseleave", this._mouseLeaveHandler = () => {
+            states.mouseover = false;
+            canvas.style.cursor = "default";
+        });
+
+        canvas.addEventListener("mousemove", this._mouseMoveHandler = (e) => {
+            getCanvasPosFromEvent$1(e, states.mouseCanvasPos);
+        });
+
+        canvas.addEventListener("mousedown", this._mouseDownHandler = (e) => {
+            if (!(configs.active && configs.pointerEnabled)) {
+                return;
+            }
+            getCanvasPosFromEvent$1(e, states.mouseCanvasPos);
+            states.mouseover = true;
+        });
+
+        canvas.addEventListener("mouseup", this._mouseUpHandler = (e) => {
+            if (!(configs.active && configs.pointerEnabled)) {
+                return;
+            }
+        });
+    }
+
+    reset() {
+    }
+
+    destroy() {
+
+        const canvas = this._scene.canvas.canvas;
+
+        canvas.removeEventListener("mousemove", this._mouseMoveHandler);
+        canvas.removeEventListener("mouseenter", this._mouseEnterHandler);
+        canvas.removeEventListener("mouseleave", this._mouseLeaveHandler);
+        canvas.removeEventListener("mousedown", this._mouseDownHandler);
+        canvas.removeEventListener("mouseup", this._mouseUpHandler);
+    }
+}
+
+function getCanvasPosFromEvent$1(event, canvasPos) {
+    if (!event) {
+        event = window.event;
+        canvasPos[0] = event.x;
+        canvasPos[1] = event.y;
+    } else {
+        let element = event.target;
+        let totalOffsetLeft = 0;
+        let totalOffsetTop = 0;
+        while (element.offsetParent) {
+            totalOffsetLeft += element.offsetLeft;
+            totalOffsetTop += element.offsetTop;
+            element = element.offsetParent;
+        }
+        canvasPos[0] = event.pageX - totalOffsetLeft;
+        canvasPos[1] = event.pageY - totalOffsetTop;
+    }
+    return canvasPos;
+}
+
+/**
+ * @private
+ */
+class TouchPanRotateAndDollyHandler {
+
+    constructor(scene, controllers, configs, states, updates) {
+
+        this._scene = scene;
+
+        const pickController = controllers.pickController;
+        const pivotController = controllers.pivotController;
+
+        const tapStartPos = new Float32Array(2);
+        let tapStartTime = -1;
+
+        const lastTouches = [];
+        let numTouches = 0;
+
+        const touch0Vec = new Float32Array(2);
+        const touch1Vec = new Float32Array(2);
+
+        const MODE_CHANGE_TIMEOUT = 50;
+        const MODE_NONE = 0;
+        const MODE_ROTATE = 1;
+        const MODE_PAN = 1 << 1;
+        const MODE_ZOOM = 1 << 2;
+
+        let currentMode = MODE_NONE;
+        let transitionTime = Date.now();
+
+        const checkMode = (mode) => {
+            const currentTime = Date.now();
+            if (currentMode === MODE_NONE) {
+                currentMode = mode;
+                return true;
+            }
+            if (currentMode === mode) {
+                return currentTime - transitionTime > MODE_CHANGE_TIMEOUT;
+            }
+            currentMode = mode;
+            transitionTime = currentTime;
+            return false;
+        };
+
+        const canvas = this._scene.canvas.canvas;
+
+        canvas.addEventListener("touchstart", this._canvasTouchStartHandler = (event) => {
+
+            if (!(configs.active && configs.pointerEnabled)) {
+                return;
+            }
+
+            const touches = event.touches;
+            const changedTouches = event.changedTouches;
+
+            states.touchStartTime = Date.now();
+
+            if (touches.length === 1 && changedTouches.length === 1) {
+                tapStartTime = states.touchStartTime;
+                tapStartPos[0] = touches[0].pageX;
+                tapStartPos[1] = touches[0].pageY;
+
+                if (configs.followPointer) {
+
+
+
+                    pickController.pickCursorPos = tapStartPos;
+                    pickController.schedulePickSurface = true;
+                    pickController.update();
+
+                    if (pickController.picked && pickController.pickedSurface && pickController.pickResult) {
+
+                        pivotController.startPivot(pickController.pickResult.worldPos);
+                        pivotController.showPivot();
+
+                    } else {
+                        pivotController.startPivot(); // Continue to use last pivot point
+                        pivotController.showPivot();
+                    }
+                }
+                
+            } else {
+                tapStartTime = -1;
+            }
+
+            while (lastTouches.length < touches.length) {
+                lastTouches.push(new Float32Array(2));
+            }
+
+            for (let i = 0, len = touches.length; i < len; ++i) {
+                lastTouches[i][0] = touches[i].pageX;
+                lastTouches[i][1] = touches[i].pageY;
+            }
+
+            currentMode = MODE_NONE;
+            numTouches = touches.length;
+
+            event.stopPropagation();
+
+        }, {passive: true});
+
+        canvas.addEventListener("touchmove", this._canvasTouchMoveHandler = (event) => {
+
+            if (!(configs.active && configs.pointerEnabled)) {
+                return;
+            }
+
+            // Scaling drag-rotate to canvas boundary
+
+            const canvasBoundary = scene.canvas.boundary;
+            const canvasWidth = canvasBoundary[2] - canvasBoundary[0];
+            const canvasHeight = canvasBoundary[3] - canvasBoundary[1];
+
+            const touches = event.touches;
+
+            if (numTouches === 1) {
+
+                const touch0 = touches[0];
+
+                if (checkMode(MODE_ROTATE)) {
+
+                    //-----------------------------------------------------------------------------------------------
+                    // Drag rotation
+                    //-----------------------------------------------------------------------------------------------
+
+                    updates.rotateDeltaY -= ((touch0.pageX - lastTouches[0][0]) / canvasWidth) * configs.dragRotationRate / 2; // Full horizontal rotation
+                    updates.rotateDeltaX += ((touch0.pageY - lastTouches[0][1]) / canvasHeight) * (configs.dragRotationRate / 4); // Half vertical rotation
+                }
+
+            } else if (numTouches === 2) {
+
+                const touch0 = touches[0];
+                const touch1 = touches[1];
+
+                math.subVec2([touch0.pageX, touch0.pageY], lastTouches[0], touch0Vec);
+                math.subVec2([touch1.pageX, touch1.pageY], lastTouches[1], touch1Vec);
+
+                const panning = math.dotVec2(touch0Vec, touch1Vec) > 0;
+
+                if (panning && checkMode(MODE_PAN)) {
+
+                    math.subVec2([touch0.pageX, touch0.pageY], lastTouches[0], touch0Vec);
+
+                    const xPanDelta = touch0Vec[0];
+                    const yPanDelta = touch0Vec[1];
+
+                    const camera = scene.camera;
+
+                    // We use only canvasHeight here so that aspect ratio does not distort speed
+
+                    if (camera.projection === "perspective") {
+
+                        const depth = Math.abs( scene.camera.eyeLookDist);
+                        const targetDistance = depth * Math.tan((camera.perspective.fov / 2) * Math.PI / 180.0);
+
+                        updates.panDeltaX += (xPanDelta * targetDistance / canvasHeight) * configs.touchPanRate;
+                        updates.panDeltaY += (yPanDelta * targetDistance / canvasHeight) * configs.touchPanRate;
+
+                    } else {
+
+                        updates.panDeltaX += 0.5 * camera.ortho.scale * (xPanDelta / canvasHeight) * configs.touchPanRate;
+                        updates.panDeltaY += 0.5 * camera.ortho.scale * (yPanDelta / canvasHeight) * configs.touchPanRate;
+                    }
+                }
+
+                if (!panning && checkMode(MODE_ZOOM)) {
+                    const d1 = math.distVec2([touch0.pageX, touch0.pageY], [touch1.pageX, touch1.pageY]);
+                    const d2 = math.distVec2(lastTouches[0], lastTouches[1]);
+                    updates.dollyDelta = (d2 - d1) * 0.05;
+                }
+            }
+
+            for (let i = 0; i < numTouches; ++i) {
+                lastTouches[i][0] = touches[i].pageX;
+                lastTouches[i][1] = touches[i].pageY;
+            }
+
+            event.stopPropagation();
+
+        }, {passive: true});
+    }
+
+    reset() {
+     }
+
+    destroy() {
+
+        const canvas = this._scene.canvas.canvas;
+
+        canvas.removeEventListener("touchstart", this._canvasTouchStartHandler);
+        canvas.removeEventListener("touchmove", this._canvasTouchMoveHandler);
+    }
+}
+
+/**
+ * @private
+ */
+class TouchPickHandler {
+
+    constructor(scene, controllers, configs, states, updates) {
+
+        this._scene = scene;
+
+        const pickController = controllers.pickController;
+        const pivotController = controllers.pivotController;
+        const cameraControl = controllers.cameraControl;
+
+        const canvas = scene.canvas.canvas;
+        
+        let touchStartTime;
+        const activeTouches = [];
+        const tapStartPos = new Float32Array(2);
+        let tapStartTime = -1;
+        let lastTapTime = -1;
+
+        const flyCameraTo = (pickResult) => {
+            let pos;
+            if (pickResult && pickResult.worldPos) {
+                pos = pickResult.worldPos;
+            }
+            const aabb = pickResult ? pickResult.entity.aabb : scene.aabb;
+            if (pos) { // Fly to look at point, don't change eye->look dist
+                const camera = scene.camera;
+                const diff = math.subVec3(camera.eye, camera.look, []);
+                controllers.cameraFlight.flyTo({
+                    // look: pos,
+                    // eye: xeokit.math.addVec3(pos, diff, []),
+                    // up: camera.up,
+                    aabb: aabb
+                });
+                // TODO: Option to back off to fit AABB in view
+            } else {// Fly to fit target boundary in view
+                controllers.cameraFlight.flyTo({
+                    aabb: aabb
+                });
+            }
+        };
+        
+        canvas.addEventListener("touchstart", this._canvasTouchStartHandler = (event) => {
+
+            if (!(configs.active && configs.pointerEnabled)) {
+                return;
+            }
+
+            const touches = event.touches;
+            const changedTouches = event.changedTouches;
+
+            touchStartTime = Date.now();
+
+            if (touches.length === 1 && changedTouches.length === 1) {
+                tapStartTime = touchStartTime;
+                tapStartPos[0] = touches[0].pageX;
+                tapStartPos[1] = touches[0].pageY;
+            } else {
+                tapStartTime = -1;
+            }
+
+            while (activeTouches.length < touches.length) {
+                activeTouches.push(new Float32Array(2));
+            }
+
+            for (let i = 0, len = touches.length; i < len; ++i) {
+                activeTouches[i][0] = touches[i].pageX;
+                activeTouches[i][1] = touches[i].pageY;
+            }
+
+            activeTouches.length = touches.length;
+
+            event.stopPropagation();
+
+        }, {passive: true});
+
+        canvas.addEventListener("touchend", this._canvasTouchEndHandler = (event) => {
+
+            if (!(configs.active && configs.pointerEnabled)) {
+                return;
+            }
+
+            const currentTime = Date.now();
+            const touches = event.touches;
+            const changedTouches = event.changedTouches;
+
+            if (touches.length === 0 && changedTouches.length === 1) {
+
+                if (tapStartTime > -1 && currentTime - tapStartTime < configs.tapInterval) {
+
+                    if (lastTapTime > -1 && tapStartTime - lastTapTime < configs.doubleTapInterval) {
+
+                        // Double-tap
+
+                        pickController.pickCursorPos[0] = Math.round(changedTouches[0].clientX);
+                        pickController.pickCursorPos[1] = Math.round(changedTouches[0].clientY);
+                        pickController.schedulePickEntity = true;
+                        pickController.schedulePickSurface = !!cameraControl.hasSubs("pickedSurface");
+
+                        pickController.update();
+
+                        if (pickController.pickResult) {
+
+                            if (pickController.pickResult) {
+                                pivotController.startPivot(pickController.pickResult.worldPos);
+                            } else {
+                                pivotController.startPivot(); // Continue to use last pivot point
+                            }
+
+                            cameraControl.fire("doublePicked", pickController.pickResult, true);
+                            if (pickController.pickedSurface) {
+                                cameraControl.fire("doublePickedSurface", pickController.pickResult, true);
+                            }
+                            if (configs.doublePickFlyTo) {
+                                flyCameraTo(pickController.pickResult);
+                            }
+                        } else {
+                            cameraControl.fire("doublePickedNothing", true);
+                            if (configs.doublePickFlyTo) {
+                                flyCameraTo();
+                            }
+                        }
+
+                        lastTapTime = -1;
+
+                    } else if (math.distVec2(activeTouches[0], tapStartPos) < configs.tapDistanceThreshold) {
+
+                        // Single-tap
+
+                        pickController.pickCursorPos[0] = Math.round(changedTouches[0].clientX);
+                        pickController.pickCursorPos[1] = Math.round(changedTouches[0].clientY);
+                        pickController.schedulePickEntity = true;
+                        pickController.schedulePickSurface = !!cameraControl.hasSubs("pickedSurface");
+
+                        pickController.update();
+
+                        if (pickController.pickResult) {
+
+                            if (pickController.pickResult) {
+                                pivotController.startPivot(pickController.pickResult.worldPos);
+                            } else {
+                                pivotController.startPivot(); // Continue to use last pivot point
+                            }
+                            
+                            cameraControl.fire("picked", pickController.pickResult, true);
+                            if (pickController.pickedSurface) {
+                                cameraControl.fire("pickedSurface", pickController.pickResult, true);
+                            }
+                        } else {
+                            cameraControl.fire("pickedNothing", {}, true);
+                        }
+
+                        lastTapTime = currentTime;
+                    }
+
+                    tapStartTime = -1;
+                }
+            }
+
+            activeTouches.length = touches.length;
+
+            for (let i = 0, len = touches.length; i < len; ++i) {
+                activeTouches[i][0] = touches[i].pageX;
+                activeTouches[i][1] = touches[i].pageY;
+            }
+
+            event.stopPropagation();
+
+        }, {passive: true});
+    }
+
+    reset() {
+    }
+
+    destroy() {
+        const canvas = this._scene.canvas.canvas;
+        canvas.removeEventListener("touchstart", this._canvasTouchStartHandler);
+        canvas.removeEventListener("touchend", this._canvasTouchEndHandler);
+    }
+}
+
+/**
+ * @desc Controls the {@link Camera} with user input, and fires events when the user interacts with pickable {@link Entity}s.
+ *
+ * # Contents
+ *
+ * * [Overview](#overview)
+ * * [Examples](#examples)
+ * * [Orbit Mode](#orbit-mode)
+ *      + [Following the Pointer in Orbit Mode](#--following-the-pointer-in-orbit-mode--)
+ *      + [Showing the Pivot Position](#--showing-the-pivot-position--)
+ *      + [Axis-Aligned Views in Orbit Mode](#--axis-aligned-views-in-orbit-mode--)
+ *      + [View-Fitting Entitys in Orbit Mode](#--view-fitting-entitys-in-orbit-mode--)
+ * * [First-Person Mode](#first-person-mode)
+ *      + [Following the Pointer in First-Person Mode](#--following-the-pointer-in-first-person-mode--)
+ *      + [Constraining Vertical Position in First-Person Mode](#--constraining-vertical-position-in-first-person-mode--)
+ *      + [Axis-Aligned Views in First-Person Mode](#--axis-aligned-views-in-first-person-mode--)
+ *      + [View-Fitting Entitys in First-Person Mode](#--view-fitting-entitys-in-first-person-mode--)
+ * * [Plan-View Mode](#plan-view-mode)
+ *      + [Following the Pointer in Plan-View Mode](#--following-the-pointer-in-plan-view-mode--)
+ *      + [Axis-Aligned Views in Plan-View Mode](#--axis-aligned-views-in-plan-view-mode--)
+ * * [CameraControl Events](#cameracontrol-events)
+ *      + ["hover"](#---hover---)
+ *      + ["hoverOff"](#---hoveroff---)
+ *      + ["hoverEnter"](#---hoverenter---)
+ *      + ["hoverOut"](#---hoverout---)
+ *      + ["picked"](#---picked---)
+ *      + ["pickedSurface"](#---pickedsurface---)
+ *      + ["pickedNothing"](#---pickednothing---)
+ *      + ["doublePicked"](#---doublepicked---)
+ *      + ["doublePickedSurface"](#---doublepickedsurface---)
+ *      + ["doublePickedNothing"](#---doublepickednothing---)
+ *      + ["rightClick"](#---rightclick---)
+ * <br><br>
+ *
+ * # Overview
+ *
+ * * Each {@link Viewer} has a ````CameraControl````, located at {@link Viewer#cameraControl}.
+ * * {@link CameraControl#navMode} selects the navigation mode:
+ *      * ````"orbit"```` rotates the {@link Camera} position about the target.
+ *      * ````"firstPerson"```` rotates the World about the Camera position.
+ *      * ````"planView"```` never rotates, but still allows to pan and dolly, typically for an axis-aligned view.
+ * * {@link CameraControl#followPointer} makes the Camera follow the mouse or touch pointer.
+ * * {@link CameraControl#constrainVertical} locks the Camera to its current height when in first-person mode.
+ * * ````CameraControl```` fires pick events when we hover, click or tap on an {@link Entity}.
+ * <br><br>
+ *
+ * # Examples
+ *
+ * * [Orbit Navigation - Duplex Model](https://xeokit.github.io/xeokit-sdk/examples/#CameraControl_orbit_Duplex)
+ * * [Orbit Navigation - Holter Tower Model](https://xeokit.github.io/xeokit-sdk/examples/#CameraControl_orbit_HolterTower)
+ * * [First-Person Navigation - Duplex Model](https://xeokit.github.io/xeokit-sdk/examples/#CameraControl_firstPerson_Duplex)
+ * * [First-Person Navigation - Holter Tower Model](https://xeokit.github.io/xeokit-sdk/examples/#CameraControl_firstPerson_HolterTower)
+ * * [Plan-view Navigation - Schependomlaan Model](https://xeokit.github.io/xeokit-sdk/examples/#CameraControl_planView_Schependomlaan)
+ * <br><br>
+ *
+ * # Orbit Mode
+ *
+ * In orbit mode, ````CameraControl```` orbits the {@link Camera} about the target.
+ *
+ * To enable orbit mode:
+ *
+ * ````javascript
+ * cameraControl.navMode = "orbit";
+ * ````
+ *
+ * Then orbit by:
+ *
+ * * left-dragging the mouse,
+ * * tap-dragging the touch pad, and
+ * * pressing arrow keys, or ````Q```` and ````E```` on a QWERTY keyboard, or ````A```` and ````E```` on an AZERTY keyboard.
+ * <br><br>
+ *
+ * Dolly forwards and backwards by:
+ *
+ * * spinning the mouse wheel,
+ * * pinching on the touch pad, and
+ * * pressing the ````+```` and ````-```` keys, or ````W```` and ````S```` on a QWERTY keyboard, or ````Z```` and ````S```` for AZERTY.
+ * <br><br>
+ *
+ * Pan horizontally and vertically by:
+ *
+ * * right-dragging the mouse,
+ * * left-dragging the mouse with the SHIFT key down,
+ * * tap-dragging the touch pad with SHIFT down,
+ * * pressing the ````A````, ````D````, ````Z```` and ````X```` keys on a QWERTY keyboard, and
+ * * pressing the ````Q````, ````D````, ````W```` and ````X```` keys on an AZERTY keyboard,
+ * <br><br>
+ *
+ * ## Following the Pointer in Orbit Mode
+ *
+ * When {@link CameraControl#followPointer} is ````true````in orbiting mode, the mouse or touch pointer will dynamically
+ * indicate the target that the {@link Camera} will orbit, as well as dolly to and from.
+ *
+ * Lets ensure that we're in orbit mode, then enable the {@link Camera} to follow the pointer:
+ *
+ * ````javascript
+ * cameraControl.navMode = "orbit";
+ * cameraControl.followPointer = true;
+ * ````
+ *
+ * When the pointer is over empty space, the target will remain on the last object that the pointer was over.
+ *
+ * ## Showing the Pivot Position
+ *
+ * We can configure {@link CameraControl#pivotElement} with an HTML element to indicate the current
+ * pivot position. The indicator will appear momentarily each time we move the {@link Camera} while in orbit mode with
+ * {@link CameraControl#followPointer} set ````true````.
+ *
+ * First we'll define some CSS to style our pivot indicator as a black dot with a white border:
+ *
+ * ````css
+ * .camera-pivot-marker {
+ *      color: #ffffff;
+ *      position: absolute;
+ *      width: 25px;
+ *      height: 25px;
+ *      border-radius: 15px;
+ *      border: 2px solid #ebebeb;
+ *      background: black;
+ *      visibility: hidden;
+ *      box-shadow: 5px 5px 15px 1px #000000;
+ *      z-index: 10000;
+ *      pointer-events: none;
+ * }
+ * ````
+ *
+ * Then we'll attach our pivot indicator's HTML element to the ````CameraControl````:
+ *
+ * ````javascript
+ * const pivotElement = document.createRange().createContextualFragment("<div class='camera-pivot-marker'></div>").firstChild;
+ *
+ * document.body.appendChild(pivotElement);
+ *
+ * cameraControl.pivotElement = pivotElement;
+ * ````
+ *
+ * ## Axis-Aligned Views in Orbit Mode
+ *
+ * In orbit mode, we can use keys 1-6 to position the {@link Camera} to look at the center of the {@link Scene} from along each of the
+ * six World-space axis. Pressing one of these keys will fly the {@link Camera} to the corresponding axis-aligned view.
+ *
+ * ## View-Fitting Entitys in Orbit Mode
+ *
+ * When {@link CameraControl#doublePickFlyTo} is ````true````, we can left-double-click or
+ * double-tap (ie. "double-pick") an {@link Entity} to fit it to view. This will cause the {@link Camera}
+ * to fly to that Entity. Our target then becomes the center of that Entity. If we are currently pivoting,
+ * then our pivot position is then also set to the Entity center.
+ *
+ * Disable that behaviour by setting {@link CameraControl#doublePickFlyTo} ````false````.
+ *
+ * # First-Person Mode
+ *
+ * In first-person mode, ````CameraControl```` rotates the World about the {@link Camera} position.
+ *
+ * To enable first-person mode:
+ *
+ * ````javascript
+ * cameraControl.navMode = "firstPerson";
+ * ````
+ *
+ * Then rotate by:
+ *
+ * * left-dragging the mouse,
+ * * tap-dragging the touch pad,
+ * * pressing arrow keys, or ````Q```` and ````E```` on a QWERTY keyboard, or ````A```` and ````E```` on an AZERTY keyboard.
+ * <br><br>
+ *
+ * Dolly forwards and backwards by:
+ *
+ * * spinning the mouse wheel,
+ * * pinching on the touch pad, and
+ * * pressing the ````+```` and ````-```` keys, or ````W```` and ````S```` on a QWERTY keyboard, or ````Z```` and ````S```` for AZERTY.
+ * <br><br>
+ *
+ * Pan left, right, up and down by:
+ *
+ * * left-dragging or right-dragging the mouse, and
+ * * tap-dragging the touch pad with SHIFT down.
+ *
+ * Pan forwards, backwards, left, right, up and down by pressing the ````WSADZX```` keys on a QWERTY keyboard,
+ * or ````WSQDWX```` keys on an AZERTY keyboard.
+ * <br><br>
+ *
+ * ## Following the Pointer in First-Person Mode
+ *
+ * When {@link CameraControl#followPointer} is ````true```` in first-person mode, the mouse or touch pointer will dynamically
+ * indicate the target to which the {@link Camera} will dolly to and from. In first-person mode, however, the World will always rotate
+ * about the {@link Camera} position.
+ *
+ * Lets ensure that we're in first-person mode, then enable the {@link Camera} to follow the pointer:
+ *
+ * ````javascript
+ * cameraControl.navMode = "firstPerson";
+ * cameraControl.followPointer = true;
+ * ````
+ *
+ * When the pointer is over empty space, the target will remain the last object that the pointer was over.
+ *
+ * ## Constraining Vertical Position in First-Person Mode
+ *
+ * In first-person mode, we can lock the {@link Camera} to its current position on the vertical World axis, which is useful for walk-through navigation:
+ *
+ * ````javascript
+ * cameraControl.constrainVertical = true;
+ * ````
+ *
+ * ## Axis-Aligned Views in First-Person Mode
+ *
+ * In first-person mode we can use keys 1-6 to position the {@link Camera} to look at the center of
+ * the {@link Scene} from along each of the six World-space axis. Pressing one of these keys will fly the {@link Camera} to the
+ * corresponding axis-aligned view.
+ *
+ * ## View-Fitting Entitys in First-Person Mode
+ *
+ * As in orbit mode, when in first-person mode and {@link CameraControl#doublePickFlyTo} is ````true````, we can double-click
+ * or double-tap an {@link Entity} (ie. "double-picking") to fit it in view. This will cause the {@link Camera} to fly to
+ * that Entity. Our target then becomes the center of that Entity.
+ *
+ * Disable that behaviour by setting {@link CameraControl#doublePickFlyTo} ````false````.
+ *
+ * # Plan-View Mode
+ *
+ * In plan-view mode, ````CameraControl```` pans and rotates the {@link Camera}, without rotating it.
+ *
+ * To enable plan-view mode:
+ *
+ * ````javascript
+ * cameraControl.navMode = "planView";
+ * ````
+ *
+ * Dolly forwards and backwards by:
+ *
+ * * spinning the mouse wheel,
+ * * pinching on the touch pad, and
+ * * pressing the ````+```` and ````-```` keys.
+ *
+ * <br>
+ * Pan left, right, up and down by:
+ *
+ * * left-dragging or right-dragging the mouse, and
+ * * tap-dragging the touch pad with SHIFT down.
+ *
+ * Pan forwards, backwards, left, right, up and down by pressing the ````WSADZX```` keys on a QWERTY keyboard,
+ * or ````WSQDWX```` keys on an AZERTY keyboard.
+ * <br><br>
+ *
+ * ## Following the Pointer in Plan-View Mode
+ *
+ * When {@link CameraControl#followPointer} is ````true```` in plan-view mode, the mouse or touch pointer will dynamically
+ * indicate the target to which the {@link Camera} will dolly to and from.  In plan-view mode, however, the {@link Camera} cannot rotate.
+ *
+ * Lets ensure that we're in plan-view mode, then enable the {@link Camera} to follow the pointer:
+ *
+ * ````javascript
+ * cameraControl.navMode = "planView";
+ * cameraControl.followPointer = true;
+ * ````
+ *
+ * When the pointer is over empty space, the target will remain the last object that the pointer was over.
+ *
+ * ## Axis-Aligned Views in Plan-View Mode
+ *
+ * As in orbit and first-person modes, in plan-view mode we can use keys 1-6 to position the {@link Camera} to look at the center of
+ * the {@link Scene} from along each of the six World-space axis. Pressing one of these keys will fly the {@link Camera} to the
+ * corresponding axis-aligned view.
+ *
+ * # CameraControl Events
+ *
+ * ````CameraControl```` fires events as we interact with {@link Entity}s using mouse or touch input.
+ *
+ * The following examples demonstrate how to subscribe to those events.
+ *
+ * The first example shows how to save a handle to a subscription, which we can later use to unsubscribe.
+ *
+ * ## "hover"
+ *
+ * Event fired when the pointer moves while hovering over an Entity.
+ *
+ * ````javascript
+ * const onHover = cameraControl.on("hover", (e) => {
+ *      const entity = e.entity; // Entity
+ *      const canvasPos = e.canvasPos; // 2D canvas position
+ * });
+ * ````
+ *
+ * To unsubscribe from the event:
+ *
+ * ````javascript
+ * cameraControl.off(onHover);
+ * ````
+ *
+ * ## "hoverOff"
+ *
+ * Event fired when the pointer moves while hovering over empty space.
+ *
+ * ````javascript
+ * cameraControl.on("hoverOff", (e) => {
+ *      const canvasPos = e.canvasPos;
+ * });
+ * ````
+ *
+ * ## "hoverEnter"
+ *
+ * Event fired when the pointer moves onto an Entity.
+ *
+ * ````javascript
+ * cameraControl.on("hoverEnter", (e) => {
+ *      const entity = e.entity;
+ *      const canvasPos = e.canvasPos;
+ * });
+ * ````
+ *
+ * ## "hoverOut"
+ *
+ * Event fired when the pointer moves off an Entity.
+ *
+ * ````javascript
+ * cameraControl.on("hoverOut", (e) => {
+ *      const entity = e.entity;
+ *      const canvasPos = e.canvasPos;
+ * });
+ * ````
+ *
+ * ## "picked"
+ *
+ * Event fired when we left-click or tap on an Entity.
+ *
+ * ````javascript
+ * cameraControl.on("picked", (e) => {
+ *      const entity = e.entity;
+ *      const canvasPos = e.canvasPos;
+ * });
+ * ````
+ *
+ * ## "pickedSurface"
+ *
+ * Event fired when we left-click or tap on the surface of an Entity.
+ *
+ * ````javascript
+ * cameraControl.on("picked", (e) => {
+ *      const entity = e.entity;
+ *      const canvasPos = e.canvasPos;
+ *      const worldPos = e.worldPos; // 3D World-space position
+ *      const viewPos = e.viewPos; // 3D View-space position
+ *      const worldNormal = e.worldNormal; // 3D World-space normal vector
+ * });
+ * ````
+ *
+ * ## "pickedNothing"
+ *
+ * Event fired when we left-click or tap on empty space.
+ *
+ * ````javascript
+ * cameraControl.on("pickedNothing", (e) => {
+ *      const canvasPos = e.canvasPos;
+ * });
+ * ````
+ *
+ * ## "doublePicked"
+ *
+ * Event fired wwhen we left-double-click or double-tap on an Entity.
+ *
+ * ````javascript
+ * cameraControl.on("doublePicked", (e) => {
+ *      const entity = e.entity;
+ *      const canvasPos = e.canvasPos;
+ * });
+ * ````
+ *
+ * ## "doublePickedSurface"
+ *
+ * Event fired when we left-double-click or double-tap on the surface of an Entity.
+ *
+ * ````javascript
+ * cameraControl.on("doublePickedSurface", (e) => {
+ *      const entity = e.entity;
+ *      const canvasPos = e.canvasPos;
+ *      const worldPos = e.worldPos;
+ *      const viewPos = e.viewPos;
+ *      const worldNormal = e.worldNormal;
+ * });
+ * ````
+ *
+ * ## "doublePickedNothing"
+ *
+ * Wvent fired when we left-double-click or double-tap on empty space.
+ *
+ * ````javascript
+ * cameraControl.on("doublePickedNothing", (e) => {
+ *      const canvasPos = e.canvasPos;
+ * });
+ * ````
+ *
+ * ## "rightClick"
+ *
+ * Event fired when we right-click on the canvas.
+ *
+ * ````javascript
+ * cameraControl.on("rightClick", (e) => {
+ *      const event = e.event; // Mouse event
+ *      const canvasPos = e.canvasPos;
+ * });
+ * ````
+ */
+class CameraControl extends Component {
 
     /**
      * @private
@@ -22010,1877 +24882,855 @@ class CameraControl extends Component {
 
         super(owner, cfg);
 
-        const self = this;
+        this.scene.canvas.canvas.oncontextmenu = (e) => {
+            e.preventDefault();
+        };
 
-        this._pivoter = new (function () { // Pivots the Camera around an arbitrary World-space position
+        // User-settable CameraControl configurations
 
-            // Pivot math by: http://www.derschmale.com/
+        this._configs = {
 
-            const scene = self.scene;
-            const camera = scene.camera;
-            const canvas = scene.canvas;
-            const pivotPoint = new Float32Array(3);
-            let cameraOffset;
-            let azimuth = 0;
-            let polar = 0;
-            let radius = 0;
-            let pivoting = false; // True while pivoting
+            // Private
 
-            const spot = document.createElement("div");
-            spot.innerText = " ";
-            spot.style.color = "#ffffff";
-            spot.style.position = "absolute";
-            spot.style.width = "25px";
-            spot.style.height = "25px";
-            spot.style.left = "0px";
-            spot.style.top = "0px";
-            spot.style["border-radius"] = "15px";
-            spot.style["border"] = "2px solid #ffffff";
-            spot.style["background"] = "black";
-            spot.style.visibility = "hidden";
-            spot.style["box-shadow"] = "5px 5px 15px 1px #000000";
-            spot.style["z-index"] = 0;
-            spot.style["pointer-events"] = "none";
-            document.body.appendChild(spot);
+            tapInterval: 150, // Millisecs
+            doubleTapInterval: 325, // Millisecs
+            tapDistanceThreshold: 4, // Pixels
 
-            (function () {
-                const viewPos = math.vec4();
-                const projPos = math.vec4();
-                const canvasPos = math.vec2();
-                let distDirty = true;
-                camera.on("viewMatrix", function () {
-                    distDirty = true;
-                });
-                camera.on("projMatrix", function () {
-                    distDirty = true;
-                });
-                scene.on("tick", function () {
-                    if (pivoting && distDirty) {
-                        math.transformPoint3(camera.viewMatrix, pivotPoint, viewPos);
-                        viewPos[3] = 1;
-                        math.transformPoint4(camera.projMatrix, viewPos, projPos);
-                        const aabb = canvas.boundary;
-                        canvasPos[0] = Math.floor((1 + projPos[0] / projPos[3]) * aabb[2] / 2);
-                        canvasPos[1] = Math.floor((1 - projPos[1] / projPos[3]) * aabb[3] / 2);
-                        const canvasElem = canvas.canvas;
-                        const rect = canvasElem.getBoundingClientRect();
-                        spot.style.left = (Math.floor(rect.left + canvasPos[0]) - 12) + "px";
-                        spot.style.top = (Math.floor(rect.top + canvasPos[1]) - 12) + "px";
-                        spot.style.visibility = "visible";
-                        distDirty = false;
-                    }
-                });
-            })();
+            // General
 
-            this.startPivot = function (worldPos) {
-                if (worldPos) { // Use last pivotPoint by default
-                    pivotPoint.set(worldPos);
-                }
-                let lookat = math.lookAtMat4v(camera.eye, camera.look, camera.worldUp);
-                cameraOffset = math.transformPoint3(lookat, pivotPoint);
-                cameraOffset[2] += math.distVec3(camera.eye, pivotPoint);
-                lookat = math.inverseMat4(lookat);
-                const offset = math.transformVec3(lookat, cameraOffset);
-                const diff = math.vec3();
-                math.subVec3(camera.eye, pivotPoint, diff);
-                math.addVec3(diff, offset);
-                if (camera.worldUp[2] === 1) {
-                    const t = diff[1];
-                    diff[1] = diff[2];
-                    diff[2] = t;
-                }
-                radius = math.lenVec3(diff);
-                polar = Math.acos(diff[1] / radius);
-                azimuth = Math.atan2(diff[0], diff[2]);
-                pivoting = true;
-            };
+            active: true,
+            keyboardLayout: "qwerty",
+            navMode: "orbit",
+            planView: false,
+            firstPerson: false,
+            followPointer: false,
+            doublePickFlyTo: true,
+            panRightClick: true,
+            showPivot: false,
+            pointerEnabled: true,
+            constrainVertical: false,
 
-            this.getPivoting = function () {
-                return pivoting;
-            };
+            // Rotation
 
-            this.setPivotPos = function (worldPos) {
-                pivotPoint.set(worldPos);
-            };
+            dragRotationRate: 360.0,
+            keyboardRotationRate: 90.0,
+            rotationInertia: 0.5,
 
-            this.getPivotPos = function () {
-                return pivotPoint;
-            };
+            // Panning
 
-            this.continuePivot = function (yawInc, pitchInc) {
-                if (!pivoting) {
-                    return;
-                }
-                if (yawInc === 0 && pitchInc === 0) {
-                    return;
-                }
-                if (camera.worldUp[2] === 1) {
-                    dx = -dx;
-                }
-                var dx = -yawInc;
-                const dy = -pitchInc;
-                azimuth += -dx * .01;
-                polar += dy * .01;
-                polar = math.clamp(polar, .001, Math.PI - .001);
-                const pos = [
-                    radius * Math.sin(polar) * Math.sin(azimuth),
-                    radius * Math.cos(polar),
-                    radius * Math.sin(polar) * Math.cos(azimuth)
-                ];
-                if (camera.worldUp[2] === 1) {
-                    const t = pos[1];
-                    pos[1] = pos[2];
-                    pos[2] = t;
-                }
-                // Preserve the eye->look distance, since in xeokit "look" is the point-of-interest, not the direction vector.
-                const eyeLookLen = math.lenVec3(math.subVec3(camera.look, camera.eye, math.vec3()));
-                math.addVec3(pos, pivotPoint);
-                let lookat = math.lookAtMat4v(pos, pivotPoint, camera.worldUp);
-                lookat = math.inverseMat4(lookat);
-                const offset = math.transformVec3(lookat, cameraOffset);
-                lookat[12] -= offset[0];
-                lookat[13] -= offset[1];
-                lookat[14] -= offset[2];
-                const zAxis = [lookat[8], lookat[9], lookat[10]];
-                camera.eye = [lookat[12], lookat[13], lookat[14]];
-                math.subVec3(camera.eye, math.mulVec3Scalar(zAxis, eyeLookLen), camera.look);
-                camera.up = [lookat[4], lookat[5], lookat[6]];
-                spot.style.visibility = "visible";
-            };
+            keyboardPanRate: 1.0,
+            touchPanRate: 1.0,
+            panInertia: 0.5,
 
-            this.showPivot = function () {
-                spot.style.visibility = "visible";
-                window.setTimeout(() => {
-                    spot.style.visibility = "hidden";
-                }, 1000);
-            };
+            // Dollying
 
-            this.hidePivot = function () {
-                spot.style.visibility = "hidden";
-            };
+            keyboardDollyRate: 10,
+            mouseWheelDollyRate: 10,
+            dollyInertia: 0.75,
+            dollyProximityThreshold: 30.0,
+            dollyMinSpeed: 1.0
+        };
 
-            this.endPivot = function () {
-                pivoting = false;
-            };
+        // Current runtime state of the CameraControl
 
-        })();
+        this._states = {
+            mouseCanvasPos: new Float32Array(2),
+            mouseover: false,
+            inputFromMouse: false, // TODO: Is this needed?
+            mouseDownClientX: 0,
+            mouseDownClientY: 0,
+            mouseDownCursorX: 0,
+            mouseDownCursorY: 0,
+            touchStartTime: null,
+            activeTouches: [],
+            tapStartPos: new Float32Array(2),
+            tapStartTime: -1,
+            lastTapTime: -1,
+        };
 
-        this._cameraFlight = new CameraFlightAnimation(this, {
-            duration: 0.5
-        });
+        // Updates for CameraUpdater to process on next Scene "tick" event
+
+        this._updates = {
+            rotateDeltaX: 0,
+            rotateDeltaY: 0,
+            panDeltaX: 0,
+            panDeltaY: 0,
+            panDeltaZ: 0,
+            dollyDelta: 0
+        };
+
+        // Controllers to assist input event handlers with controlling the Camera
+
+        const scene = this.scene;
+
+        this._controllers = {
+            cameraControl: this,
+            pickController: new PickController(this, this._configs),
+            pivotController: new PivotController(scene),
+            panController: new PanController(this.scene),
+            cameraFlight: new CameraFlightAnimation(this, {
+                duration: 0.5
+            })
+        };
+
+        // Input event handlers
+
+        this._handlers = [
+            new MouseMiscHandler(this.scene, this._controllers, this._configs, this._states, this._updates),
+            new TouchPanRotateAndDollyHandler(this.scene, this._controllers, this._configs, this._states, this._updates),
+            new MousePanRotateDollyHandler(this.scene, this._controllers, this._configs, this._states, this._updates),
+            new KeyboardAxisViewHandler(this.scene, this._controllers, this._configs, this._states, this._updates),
+            new MousePickHandler(this.scene, this._controllers, this._configs, this._states, this._updates),
+            new TouchPickHandler(this.scene, this._controllers, this._configs, this._states, this._updates),
+            new KeyboardPanRotateDollyHandler(this.scene, this._controllers, this._configs, this._states, this._updates)
+        ];
+
+        // Applies scheduled updates to the Camera on each Scene "tick" event
+
+        this._cameraUpdater = new CameraUpdater(this.scene, this._controllers, this._configs, this._states, this._updates);
+
+        // Set initial user configurations
 
         this.planView = cfg.planView;
-        this.firstPerson = cfg.firstPerson;
-        this.walking = cfg.walking;
+        this.navMode = cfg.navMode;
+        this.constrainVertical = cfg.constrainVertical;
         this.keyboardLayout = cfg.keyboardLayout;
         this.doublePickFlyTo = cfg.doublePickFlyTo;
         this.panRightClick = cfg.panRightClick;
         this.active = cfg.active;
-        this.pivoting = cfg.pivoting;
-        this.panToPointer = cfg.panToPointer;
-        this.panToPivot = cfg.panToPivot;
-        this.inertia = cfg.inertia;
+        this.followPointer = cfg.followPointer;
+        this.rotationInertia = cfg.rotationInertia;
+        this.keyboardPanRate = cfg.keyboardPanRate;
+        this.touchPanRate = cfg.touchPanRate;
+        this.keyboardRotationRate = cfg.keyboardRotationRate;
+        this.dragRotationRate = cfg.dragRotationRate;
+        this.dollyInertia = cfg.dollyInertia;
+        this.dollyProximityThreshold = cfg.dollyProximityThreshold;
+        this.dollyMinSpeed = cfg.dollyMinSpeed;
+        this.panInertia = cfg.panInertia;
         this.pointerEnabled = true;
-
-        this._initEvents(); // Set up all the mouse/touch/kb handlers
+        this.keyboardDollyRate = cfg.keyboardDollyRate;
+        this.mouseWheelDollyRate = cfg.mouseWheelDollyRate;
     }
 
     /**
-     *  Sets if this CameraControl is active or not.
+     * Sets the HTMl element to represent the pivot point when {@link CameraControl#followPointer} is true.
      *
-     * Default value is ````true````.
+     * See class comments for an example.
      *
-     * @param {Boolean} value Set ````true```` to activate this CameraControl.
+     * @param {HTMLElement} element HTML element representing the pivot point.
+     */
+    set pivotElement(element) {
+        this._controllers.pivotController.setPivotElement(element);
+    }
+
+    /**
+     *  Sets if this ````CameraControl```` is active or not.
+     *
+     * When inactive, the ````CameraControl```` will not react to input.
+     *
+     * Default is ````true````.
+     *
+     * @param {Boolean} value Set ````true```` to activate this ````CameraControl````.
      */
     set active(value) {
-        this._active = value !== false;
+        this._configs.active = value !== false;
     }
 
     /**
-     * Gets if this CameraControl is active or not.
+     * Gets if this ````CameraControl```` is active or not.
      *
-     * Default value is ````true````.
+     * When inactive, the ````CameraControl```` will not react to input.
      *
-     * @returns {Boolean} Returns ````true```` if this CameraControl is active.
+     * Default is ````true````.
+     *
+     * @returns {Boolean} Returns ````true```` if this ````CameraControl```` is active.
      */
     get active() {
-        return this._active;
+        return this._configs.active;
     }
 
     /**
-     * Sets whether dragging will pivot the {@link Camera} about the current 3D pivot point.
+     * Sets the current navigation mode.
      *
-     * The pivot point is indicated by {@link CameraControl#pivotPos}.
+     * Accepted values are:
      *
-     * When in pivoting mode, clicking on an {@link Entity} will set {@link CameraControl#pivotPos} to the clicked position on the surface of the Entity.
+     * * "orbit" - rotation orbits about the current target or pivot point,
+     * * "firstPerson" - rotation is about the current eye position,
+     * * "planView" - rotation is disabled.
      *
-     * Default value is ````false````.
+     * See class comments for more info.
      *
-     * @param {Boolean} value Set ````true```` to enable pivoting.
+     * @param {String} navMode The navigation mode: "orbit", "firstPerson" or "planView".
      */
-    set pivoting(value) {
-        this._pivoting = !!value;
+    set navMode(navMode) {
+        navMode = navMode || "orbit";
+        if (navMode !== "firstPerson" && navMode !== "orbit" && navMode !== "planView") {
+            this.error("Unsupported value for navMode: " + navMode + " - supported values are 'orbit', 'firstPerson' and 'planView' - defaulting to 'orbit'");
+            navMode = "orbit";
+        }
+        this._configs.firstPerson = (navMode === "firstPerson");
+        this._configs.planView = (navMode === "planView");
+        if (this._configs.firstPerson || this._configs.planView) {
+            this._controllers.pivotController.hidePivot();
+            this._controllers.pivotController.endPivot();
+        }
+        this._configs.navMode = navMode;
     }
 
     /**
-     * Sets whether dragging will pivot the {@link Camera} about the current 3D pivot point.
+     * Gets the current navigation mode.
      *
-     * The pivot point is indicated by {@link CameraControl#pivotPos}.
-     *
-     * When in pivoting mode, clicking on an {@link Entity} will set {@link CameraControl#pivotPos} to the clicked position on the surface of the Entity.
-     *
-     * Default value is ````false````.
-     *
-     * @returns {Boolean} Returns ````true```` to enable pivoting.
+     * @returns {String} The navigation mode: "orbit", "firstPerson" or "planView".
      */
-    get pivoting() {
-        return this._pivoting;
+    get navMode() {
+        return this._configs.navMode;
     }
 
     /**
-     * Sets the current World-space 3D pivot position.
+     * Sets whether mouse and touch input is enabled.
      *
-     * @param {Number[]} worldPos The new World-space 3D pivot position.
+     * Default is ````true````.
+     *
+     * Disabling mouse and touch input on ````CameraControl```` is useful when we want to temporarily use mouse or
+     * touch input to interact with some other 3D control, without disturbing the {@link Camera}.
+     *
+     * @param {Boolean} value Set ````true```` to enable mouse and touch input.
+     */
+    set pointerEnabled(value) {
+        this._reset();
+        this._configs.pointerEnabled = !!value;
+    }
+
+    _reset() {
+        for (let i = 0, len = this._handlers.length; i < len; i++) {
+            const handler = this._handlers[i];
+            if (handler.reset) {
+                handler.reset();
+            }
+        }
+
+        this._updates.panDeltaX = 0;
+        this._updates.panDeltaY = 0;
+        this._updates.rotateDeltaX = 0;
+        this._updates.rotateDeltaY = 0;
+        this._updates.dolyDelta = 0;
+    }
+
+    /**
+     * Gets whether mouse and touch input is enabled.
+     *
+     * Default is ````true````.
+     *
+     * Disabling mouse and touch input on ````CameraControl```` is desirable when we want to temporarily use mouse or
+     * touch input to interact with some other 3D control, without interfering with the {@link Camera}.
+     *
+     * @returns {Boolean} Returns ````true```` if mouse and touch input is enabled.
+     */
+    get pointerEnabled() {
+        return this._configs.pointerEnabled;
+    }
+
+    /**
+     * Sets whether the {@link Camera} follows the mouse or touch pointer.
+     *
+     * In orbiting mode, the Camera will orbit about the pointer, and will dolly to and from the pointer.
+     *
+     * In fly-to mode, the Camera will dolly to and from the pointer, however the World will always rotate about the Camera position.
+     *
+     * In plan-view mode, the Camera will dolly to and from the pointer, however the Camera will not rotate.
+     *
+     * Default is ````false````.
+     *
+     * See class comments for more info.
+     *
+     * @param {Boolean} value Set ````true```` to enable the Camera to follow the pointer.
+     */
+    set followPointer(value) {
+        this._configs.followPointer = !!value;
+    }
+
+    /**
+     * Sets whether the {@link Camera} follows the mouse or touch pointer.
+     *
+     * In orbiting mode, the Camera will orbit about the pointer, and will dolly to and from the pointer.
+     *
+     * In fly-to mode, the Camera will dolly to and from the pointer, however the World will always rotate about the Camera position.
+     *
+     * In plan-view mode, the Camera will dolly to and from the pointer, however the Camera will not rotate.
+     *
+     * Default is ````false````.
+     *
+     * See class comments for more info.
+     *
+     * @returns {Boolean} Returns ````true```` if the Camera follows the pointer.
+     */
+    get followPointer() {
+        return this._configs.followPointer;
+    }
+
+    /**
+     * Sets the current World-space 3D target position.
+     *
+     * Only applies when {@link CameraControl#followPointer} is ````true````.
+     *
+     * @param {Number[]} worldPos The new World-space 3D target position.
      */
     set pivotPos(worldPos) {
-        this._pivoter.setPivotPos(worldPos);
+        this._controllers.pivotController.setPivotPos(worldPos);
     }
 
     /**
      * Gets the current World-space 3D pivot position.
      *
+     * Only applies when {@link CameraControl#followPointer} is ````true````.
+     *
      * @return {Number[]} worldPos The current World-space 3D pivot position.
      */
     get pivotPos() {
-        return this._pivoter.getPivotPos();
+        return this._controllers.pivotController.getPivotPos();
     }
 
     /**
-     * Sets whether scrolling the mouse wheel, when the mouse is over an {@link Entity}, will zoom the {@link Camera} towards the hovered point on the Entity's surface.
-     *
-     * Default value is ````false````.
-     *
-     * @param {Boolean} value Set ````true```` to enable pan-to-pointer behaviour.
+     * @deprecated
+     * @param {Boolean} value Set ````true```` to enable dolly-to-pointer behaviour.
+     */
+    set dollyToPointer(value) {
+        this.warn("dollyToPointer property is deprecated - replaced with followPointer");
+        this.followPointer = value;
+    }
+
+    /**
+     * @deprecated
+     * @returns {Boolean} Returns ````true```` if dolly-to-pointer behaviour is enabled.
+     */
+    get dollyToPointer() {
+        this.warn("dollyToPointer property is deprecated - replaced with followPointer");
+        return this.followPointer = value;
+    }
+
+    /**
+     * @deprecated
+     * @param {Boolean} value Set ````true```` to enable dolly-to-pointer behaviour.
      */
     set panToPointer(value) {
-        this._panToPointer = !!value;
-        if (this._panToPointer) {
-            this._panToPivot = false;
-        }
+        this.warn("panToPointer property is deprecated - replaced with followPointer");
     }
 
     /**
-     * Gets whether scrolling the mouse wheel, when the mouse is over an {@link Entity}, will zoom the {@link Camera} towards the hovered point on the Entity's surface.
-     *
-     * Default value is ````false````.
-     *
-     * @returns {Boolean} Returns ````true```` if pan-to-pointer behaviour is enabled.
+     * @deprecated
+     * @returns {Boolean} Returns ````true```` if dolly-to-pointer behaviour is enabled.
      */
     get panToPointer() {
-        return this._panToPointer;
+        this.warn("panToPointer property is deprecated - replaced with followPointer");
+        return false;
     }
 
     /**
-     * Sets whether scrolling the mouse wheel, when mouse is over an {@link Entity}, will zoom the {@link Camera} towards the pivot point.
-     *
-     * Default value is ````false````.
-     *
-     * @param {Boolean} value Set ````true```` to enable pan-to-pivot behaviour.
-     */
-    set panToPivot(value) {
-        this._panToPivot = !!value;
-        if (this._panToPivot) {
-            this._panToPointer = false;
-        }
-    }
-
-    /**
-     * Gets whether scrolling the mouse wheel, when mouse is over an {@link Entity}, will zoom the {@link Camera} towards the pivot point.
-     *
-     * Default value is ````false````.
-     *
-     * @returns {Boolean} Returns ````true```` if enable pan-to-pivot behaviour is enabled.
-     */
-    get panToPivot() {
-        return this._panToPivot;
-    }
-
-    /**
-     * Sets whether this CameraControl is in plan-view mode.
+     * Sets whether this ````CameraControl```` is in plan-view mode.
      *
      * When in plan-view mode, rotation is disabled.
      *
-     * Default value is ````false````.
+     * Default is ````false````.
+     *
+     * Deprecated - use {@link CameraControl#navMode} instead.
      *
      * @param {Boolean} value Set ````true```` to enable plan-view mode.
+     * @deprecated
      */
     set planView(value) {
-        this._planView = !!value;
+        this._configs.planView = !!value;
+        this._configs.firstPerson = false;
+        if (this._configs.planView) {
+            this._controllers.pivotController.hidePivot();
+            this._controllers.pivotController.endPivot();
+        }
+        this.warn("planView property is deprecated - replaced with navMode");
     }
 
     /**
-     * Gets whether this CameraControl is in plan-view mode.
+     * Gets whether this ````CameraControl```` is in plan-view mode.
      *
      * When in plan-view mode, rotation is disabled.
      *
-     * Default value is ````false````.
+     * Default is ````false````.
+     *
+     * Deprecated - use {@link CameraControl#navMode} instead.
      *
      * @returns {Boolean} Returns ````true```` if plan-view mode is enabled.
+     * @deprecated
      */
     get planView() {
-        return this._planView;
+        this.warn("planView property is deprecated - replaced with navMode");
+        return this._configs.planView;
     }
 
     /**
-     * Sets whether this CameraControl is in first-person mode.
+     * Sets whether this ````CameraControl```` is in first-person mode.
      *
      * In "first person" mode (disabled by default) the look position rotates about the eye position. Otherwise,  {@link Camera#eye} rotates about {@link Camera#look}.
      *
-     * Default value is ````false````.
+     * Default is ````false````.
+     *
+     * Deprecated - use {@link CameraControl#navMode} instead.
      *
      * @param {Boolean} value Set ````true```` to enable first-person mode.
+     * @deprecated
      */
     set firstPerson(value) {
-        this._firstPerson = !!value;
-        if (this._firstPerson) {
-            this._pivoter.hidePivot();
-            this._pivoter.endPivot();
+        this.warn("firstPerson property is deprecated - replaced with navMode");
+        this._configs.firstPerson = !!value;
+        this._configs.planView = false;
+        if (this._configs.firstPerson) {
+            this._controllers.pivotController.hidePivot();
+            this._controllers.pivotController.endPivot();
         }
     }
 
     /**
-     * Gets whether this CameraControl is in first-person mode.
+     * Gets whether this ````CameraControl```` is in first-person mode.
      *
      * In "first person" mode (disabled by default) the look position rotates about the eye position. Otherwise,  {@link Camera#eye} rotates about {@link Camera#look}.
      *
-     * Default value is ````false````.
+     * Default is ````false````.
+     *
+     * Deprecated - use {@link CameraControl#navMode} instead.
      *
      * @returns {Boolean} Returns ````true```` if first-person mode is enabled.
+     * @deprecated
      */
     get firstPerson() {
-        return this._firstPerson;
+        this.warn("firstPerson property is deprecated - replaced with navMode");
+        return this._configs.firstPerson;
     }
 
     /**
-     * Sets whether this CameraControl is in walking mode.
+     * Sets whether to vertically constrain the {@link Camera} position for first-person navigation.
      *
-     * When set ````true````, this constrains {@link Camera#eye} movement to the horizontal X-Z plane. When doing a walkthrough,
-     * this is useful to allow us to look upwards or downwards as we move, while keeping us moving in the  horizontal plane.
+     * When set ````true````, this constrains {@link Camera#eye} to its current vertical position.
      *
-     * This only has an effect when {@link CameraControl#firstPerson} is ````true````.
+     * Only applies when {@link CameraControl#navMode} is ````"firstPerson"````.
      *
-     * Default value is ````false````.
+     * Default is ````false````.
      *
-     * @param {Boolean} value Set ````true```` to enable walking mode.
+     * @param {Boolean} value Set ````true```` to vertically constrain the Camera.
      */
-    set walking(value) {
-        this._walking = !!value;
+    set constrainVertical(value) {
+        this._configs.constrainVertical = !!value;
     }
 
     /**
-     * Gets whether this CameraControl is in walking mode.
+     * Gets whether to vertically constrain the {@link Camera} position for first-person navigation.
      *
-     * When set ````true````, this constrains {@link Camera#eye} movement to the horizontal X-Z plane. When doing a walkthrough,
-     * this is useful to allow us to look upwards or downwards as we move, while keeping us moving in the  horizontal plane.
+     * When set ````true````, this constrains {@link Camera#eye} to its current vertical position.
      *
-     * This only has an effect when {@link CameraControl#firstPerson} is ````true````.
+     * Only applies when {@link CameraControl#navMode} is ````"firstPerson"````.
      *
-     * Default value is ````false````.
+     * Default is ````false````.
      *
-     * @returns {Boolean} Returns ````true```` when in walking mode.
+     * @returns {Boolean} ````true```` when Camera is vertically constrained.
      */
-    get walking() {
-        return this._walking;
+    get constrainVertical() {
+        return this._configs.constrainVertical;
     }
 
     /**
      * Sets whether double-picking an {@link Entity} causes the {@link Camera} to fly to its boundary.
      *
-     * Default value is ````false````.
+     * Default is ````false````.
      *
      * @param {Boolean} value Set ````true```` to enable double-pick-fly-to mode.
      */
     set doublePickFlyTo(value) {
-        this._doublePickFlyTo = value !== false;
+        this._configs.doublePickFlyTo = value !== false;
     }
 
     /**
      * Gets whether double-picking an {@link Entity} causes the {@link Camera} to fly to its boundary.
      *
-     * Default value is ````false````.
+     * Default is ````false````.
      *
      * @returns {Boolean} Returns ````true```` when double-pick-fly-to mode is enabled.
      */
     get doublePickFlyTo() {
-        return this._doublePickFlyTo;
+        return this._configs.doublePickFlyTo;
     }
 
     /**
      * Sets whether either right-clicking (true) or middle-clicking (false) pans the {@link Camera}.
      *
-     * Default value is ````true````.
+     * Default is ````true````.
      *
      * @param {Boolean} value Set ````false```` to disable pan on right-click.
      */
     set panRightClick(value) {
-        this._panRightClick = value !== false;
+        this._configs.panRightClick = value !== false;
     }
 
     /**
      * Gets whether right-clicking pans the {@link Camera}.
      *
-     * Default value is ````true````.
+     * Default is ````true````.
      *
      * @returns {Boolean} Returns ````false```` when pan on right-click is disabled.
      */
     get panRightClick() {
-        return this._panRightClick;
+        return this._configs.panRightClick;
     }
 
     /**
-     * Sets a factor in range ````[0..1]```` indicating how much the camera keeps moving after you finish panning or rotating it.
+     * Sets a factor in range ````[0..1]```` indicating how much the {@link Camera} keeps moving after you finish rotating it.
      *
      * A value of ````0.0```` causes it to immediately stop, ````0.5```` causes its movement to decay 50% on each tick,
-     * while ````1.0```` causes no decay, allowing it continue moving, by the current rate of pan or rotation.
+     * while ````1.0```` causes no decay, allowing it continue moving, by the current rate of rotation.
      *
-     * You may choose an inertia of zero when you want be able to precisely position or rotate the camera,
-     * without interference from inertia. ero inertia can also mean that less frames are rendered while
-     * you are positioning the camera.
+     * You may choose an inertia of zero when you want be able to precisely rotate the Camera,
+     * without interference from inertia. Zero inertia can also mean that less frames are rendered while
+     * you are rotating the Camera.
      *
-     * Default value is ````0.5````.
+     * Default is ````0.5````.
      *
-     * @param {Number} value New inertial factor.
+     * Does not apply when {@link CameraControl#navMode} is ````"planView"````, which disallows rotation.
+     *
+     * @param {Number} rotationInertia New inertial factor.
      */
-    set inertia(value) {
-        this._inertia = value === undefined ? 0.5 : value;
+    set rotationInertia(rotationInertia) {
+        this._configs.rotationInertia = (rotationInertia !== undefined && rotationInertia !== null) ? rotationInertia : 0.5;
     }
 
     /**
-     * Gets the inertia factor.
+     * Gets the rotation inertia factor.
      *
-     * Default value is ````0.5````.
+     * Default is ````0.5````.
+     *
+     * Does not apply when {@link CameraControl#navMode} is ````"planView"````, which disallows rotation.
      *
      * @returns {Number} The inertia factor.
      */
-    get inertia() {
-        return this._inertia;
+    get rotationInertia() {
+        return this._configs.rotationInertia;
     }
 
     /**
-     * Sets whether canvas pointer events are enabled.
+     * Sets how much the {@link Camera} pans each second with keyboard input.
      *
-     * Default value is ````true````.
+     * Default is ````5.0````, to pan the Camera ````5.0```` World-space units every second that
+     * a panning key is depressed. See the ````CameraControl```` class documentation for which keys control
+     * panning.
      *
-     * @param {Boolean} value Set ````true```` to enable drag events.
+     * Panning direction is aligned to our Camera's orientation. When we pan horizontally, we pan
+     * to our left and right, when we pan vertically, we pan upwards and downwards, and when we pan forwards
+     * and backwards, we pan along the direction the Camera is pointing.
+     *
+     * Unlike dollying when {@link followPointer} is ````true````, panning does not follow the pointer.
+     *
+     * @param {Number} keyboardPanRate The new keyboard pan rate.
      */
-    set pointerEnabled(value) {
-        this._pointerEnabled = !!value;
+    set keyboardPanRate(keyboardPanRate) {
+        this._configs.keyboardPanRate = (keyboardPanRate !== null && keyboardPanRate !== undefined) ? keyboardPanRate : 5.0;
     }
 
+
     /**
-     * Gets whether canvas pointer events are enabled.
+     * Sets how fast the camera pans on touch panning
      *
-     * Default value is ````true````.
-     *
-     * @returns {Boolean} Returns ````true```` to enable drag events.
+     * @param {Number} touchPanRate The new touch pan rate.
      */
-    get pointerEnabled() {
-        return this._pointerEnabled;
+    set touchPanRate(touchPanRate) {
+        this._configs.touchPanRate = (touchPanRate !== null && touchPanRate !== undefined) ? touchPanRate : 1.0;
+    }
+
+     /**
+     * Gets how fast the {@link Camera} pans on touch panning
+     *
+     * Default is ````1.0````.
+     *
+     * @returns {Number} The current touch pan rate.
+     */
+    get touchPanRate() {
+        return this._configs.touchPanRate;
     }
 
     /**
-     * @private
+     * Gets how much the {@link Camera} pans each second with keyboard input.
+     *
+     * Default is ````5.0````.
+     *
+     * @returns {Number} The current keyboard pan rate.
+     */
+    get keyboardPanRate() {
+        return this._configs.keyboardPanRate;
+    }
+
+    /**
+     * Sets how many degrees per second the {@link Camera} rotates/orbits with keyboard input.
+     *
+     * Default is ````90.0````, to rotate/orbit the Camera ````90.0```` degrees every second that
+     * a rotation key is depressed. See the ````CameraControl```` class documentation for which keys control
+     * rotation/orbit.
+     *
+     * @param {Number} keyboardRotationRate The new keyboard rotation rate.
+     */
+    set keyboardRotationRate(keyboardRotationRate) {
+        this._configs.keyboardRotationRate = (keyboardRotationRate !== null && keyboardRotationRate !== undefined) ? keyboardRotationRate : 90.0;
+    }
+
+    /**
+     * Sets how many degrees per second the {@link Camera} rotates/orbits with keyboard input.
+     *
+     * Default is ````90.0````.
+     *
+     * @returns {Number} The current keyboard rotation rate.
+     */
+    get keyboardRotationRate() {
+        return this._configs.keyboardRotationRate;
+    }
+
+    /**
+     * Sets the current drag rotation rate.
+     *
+     * This configures how many degrees the {@link Camera} rotates/orbits for a full sweep of the canvas by mouse or touch dragging.
+     *
+     * For example, a value of ````360.0```` indicates that the ````Camera```` rotates/orbits ````360.0```` degrees horizontally
+     * when we sweep the entire width of the canvas.
+     *
+     * ````CameraControl```` makes vertical rotation half as sensitive as horizontal rotation, so that we don't tend to
+     * flip upside-down. Therefore, a value of ````360.0```` rotates/orbits the ````Camera```` through ````180.0```` degrees
+     * vertically when we sweep the entire height of the canvas.
+     *
+     * Default is ````360.0````.
+     *
+     * @param {Number} dragRotationRate The new drag rotation rate.
+     */
+    set dragRotationRate(dragRotationRate) {
+        this._configs.dragRotationRate = (dragRotationRate !== null && dragRotationRate !== undefined) ? dragRotationRate : 360.0;
+    }
+
+    /**
+     * Gets the current drag rotation rate.
+     *
+     * Default is ````360.0````.
+     *
+     * @returns {Number} The current drag rotation rate.
+     */
+    get dragRotationRate() {
+        return this._configs.dragRotationRate;
+    }
+
+    /**
+     * Sets how much the {@link Camera} dollys each second with keyboard input.
+     *
+     * Default is ````15.0````, to dolly the {@link Camera} ````15.0```` World-space units per second while we hold down
+     * the ````+```` and ````-```` keys.
+     *
+     * @param {Number} keyboardDollyRate The new keyboard dolly rate.
+     */
+    set keyboardDollyRate(keyboardDollyRate) {
+        this._configs.keyboardDollyRate = (keyboardDollyRate !== null && keyboardDollyRate !== undefined) ? keyboardDollyRate : 15.0;
+    }
+
+    /**
+     * Gets how much the {@link Camera} dollys each second with keyboard input.
+     *
+     * Default is ````15.0````.
+     *
+     * @returns {Number} The current keyboard dolly rate.
+     */
+    get keyboardDollyRate() {
+        return this._configs.keyboardDollyRate;
+    }
+
+    /**
+     * Sets how much the {@link Camera} dollys each second while the mouse wheel is spinning.
+     *
+     * Default is ````15.0````, to dolly the {@link Camera} ````15.0```` World-space units per second as we spin
+     * the mouse wheel.
+     *
+     * @param {Number} mouseWheelDollyRate The new mouse wheel dolly rate.
+     */
+    set mouseWheelDollyRate(mouseWheelDollyRate) {
+        this._configs.mouseWheelDollyRate = (mouseWheelDollyRate !== null && mouseWheelDollyRate !== undefined) ? mouseWheelDollyRate : 15.0;
+    }
+
+    /**
+     * Gets how much the {@link Camera} dollys each second while the mouse wheel is spinning.
+     *
+     * Default is ````15.0````.
+     *
+     * @returns {Number} The current mouseWheel dolly rate.
+     */
+    get mouseWheelDollyRate() {
+        return this._configs.mouseWheelDollyRate;
+    }
+
+    /**
+     * Sets the dolly inertia factor.
+     *
+     * This factor configures how much the {@link Camera} keeps moving after you finish dollying it.
+     *
+     * This factor is a value in range ````[0..1]````. A value of ````0.0```` causes dollying to immediately stop,
+     * ````0.5```` causes dollying to decay 50% on each animation frame, while ````1.0```` causes no decay, which allows dollying
+     * to continue until further input stops it.
+     *
+     * You might set ````dollyInertia```` to zero when you want be able to precisely position or rotate the Camera,
+     * without interference from inertia. This also means that xeokit renders less frames while dollying the Camera,
+     * which can improve rendering performance.
+     *
+     * Default is ````0.75````.
+     *
+     * @param {Number} dollyInertia New dolly inertia factor.
+     */
+    set dollyInertia(dollyInertia) {
+        this._configs.dollyInertia = (dollyInertia !== undefined && dollyInertia !== null) ? dollyInertia : 0.75;
+    }
+
+    /**
+     * Gets the dolly inertia factor.
+     *
+     * Default is ````0.75````.
+     *
+     * @returns {Number} The current dolly inertia factor.
+     */
+    get dollyInertia() {
+        return this._configs.dollyInertia;
+    }
+
+    /**
+     * Sets the proximity to the closest object below which dolly speed decreases, and above which dolly speed increases.
+     *
+     * Default is ````35.0````.
+     *
+     * @param {Number} dollyProximityThreshold New dolly proximity threshold.
+     */
+    set dollyProximityThreshold(dollyProximityThreshold) {
+        this._configs.dollyProximityThreshold = (dollyProximityThreshold !== undefined && dollyProximityThreshold !== null) ? dollyProximityThreshold : 35.0;
+    }
+
+    /**
+     * Gets the proximity to the closest object below which dolly speed decreases, and above which dolly speed increases.
+     *
+     * Default is ````35.0````.
+     *
+     * @returns {Number} The current dolly proximity threshold.
+     */
+    get dollyProximityThreshold() {
+        return this._configs.dollyProximityThreshold;
+    }
+
+    /**
+     * Sets the minimum dolly speed.
+     *
+     * Default is ````0.05````.
+     *
+     * @param {Number} dollyMinSpeed New dolly minimum speed.
+     */
+    set dollyMinSpeed(dollyMinSpeed) {
+        this._configs.dollyMinSpeed = (dollyMinSpeed !== undefined && dollyMinSpeed !== null) ? dollyMinSpeed : 0.05;
+    }
+
+    /**
+     * Gets the minimum dolly speed.
+     *
+     * Default is ````0.05````.
+     *
+     * @returns {Number} The current minimum dolly speed.
+     */
+    get dollyMinSpeed() {
+        return this._configs.dollyMinSpeed;
+    }
+
+    /**
+     * Sets the pan inertia factor.
+     *
+     * This factor configures how much the {@link Camera} keeps moving after you finish panning it.
+     *
+     * This factor is a value in range ````[0..1]````. A value of ````0.0```` causes panning to immediately stop,
+     * ````0.5```` causes panning to decay 50% on each animation frame, while ````1.0```` causes no decay, which allows panning
+     * to continue until further input stops it.
+     *
+     * You might set ````panInertia```` to zero when you want be able to precisely position or rotate the Camera,
+     * without interference from inertia. This also means that xeokit renders less frames while panning the Camera,
+     * wich can improve rendering performance.
+     *
+     * Default is ````0.5````.
+     *
+     * @param {Number} panInertia New pan inertia factor.
+     */
+    set panInertia(panInertia) {
+        this._configs.panInertia = (panInertia !== undefined && panInertia !== null) ? panInertia : 0.5;
+    }
+
+    /**
+     * Gets the pan inertia factor.
+     *
+     * Default is ````0.5````.
+     *
+     * @returns {Number} The current pan inertia factor.
+     */
+    get panInertia() {
+        return this._configs.panInertia;
+    }
+
+    /**
+     * Sets the keyboard layout.
+     *
+     * Supported layouts are:
+     *
+     * * ````"qwerty"```` (default)
+     * * ````"azerty"````
+     *
+     * @param {String} value Selects the keyboard layout.
      */
     set keyboardLayout(value) {
-        this._keyboardLayout = value || "qwerty";
+        value = value || "qwerty";
+        if (value !== "qwerty" && value !== "azerty") {
+            this.error("Unsupported value for keyboardLayout - defaulting to 'qwerty'");
+            value = "qwerty";
+        }
+        this._configs.keyboardLayout = value;
     }
 
     /**
-     * @private
+     * Gets the keyboard layout.
+     *
+     * Supported layouts are:
+     *
+     * * ````"qwerty"```` (default)
+     * * ````"azerty"````
+     *
+     * @returns {String} The current keyboard layout.
      */
     get keyboardLayout() {
-        return this._keyboardLayout;
+        return this._configs.keyboardLayout;
     }
 
-    _initEvents() {
-
-        const self = this;
-        const scene = this.scene;
-        const input = scene.input;
-        const camera = scene.camera;
-        const canvas = this.scene.canvas.canvas;
-        let over = false;
-        const mouseOrbitRate = 0.4;
-        const mousePanRate = 0.4;
-        const mouseZoomRate = 0.8;
-        const keyboardOrbitRate = .02;
-        const keyboardPanRate = .02;
-        const keyboardZoomRate = .02;
-        const touchRotateRate = 0.3;
-        const touchPanRate = 0.2;
-        const touchZoomRate = 0.05;
-
-        canvas.oncontextmenu = function (e) {
-            e.preventDefault();
-        };
-
-        const getCanvasPosFromEvent = function (event, canvasPos) {
-            if (!event) {
-                event = window.event;
-                canvasPos[0] = event.x;
-                canvasPos[1] = event.y;
-            } else {
-                let element = event.target;
-                let totalOffsetLeft = 0;
-                let totalOffsetTop = 0;
-                while (element.offsetParent) {
-                    totalOffsetLeft += element.offsetLeft;
-                    totalOffsetTop += element.offsetTop;
-                    element = element.offsetParent;
-                }
-                canvasPos[0] = event.pageX - totalOffsetLeft;
-                canvasPos[1] = event.pageY - totalOffsetTop;
-            }
-            return canvasPos;
-        };
-
-        const pickCursorPos = [0, 0];
-        let needPickEntity = false;
-        let needPickSurface = false;
-        let lastPickedEntityId;
-        let pickResult;
-        let pickedSurface = false;
-
-        function updatePick() {
-            if (!self._pointerEnabled) {
-                return;
-            }
-            if (!needPickEntity && !needPickSurface) {
-                return;
-            }
-            pickedSurface = false;
-            if (needPickSurface || self.hasSubs("hoverSurface")) {
-                pickResult = scene.pick({
-                    pickSurface: true,
-                    canvasPos: pickCursorPos
-                });
-            } else { // needPickEntity == true
-                pickResult = scene.pick({
-                    canvasPos: pickCursorPos
-                });
-            }
-            if (pickResult) {
-                const pickedEntityId = pickResult.entity.id;
-                if (lastPickedEntityId !== pickedEntityId) {
-                    if (lastPickedEntityId !== undefined) {
-
-                        /**
-                         * Fired whenever the pointer no longer hovers over an {@link Entity}.
-                         * @event hoverOut
-                         * @param entity The Entity
-                         */
-                        self.fire("hoverOut", {
-                            entity: scene.objects[lastPickedEntityId]
-                        }, true);
-                    }
-
-                    /**
-                     * Fired when the pointer is over a new {@link Entity}.
-                     * @event hoverEnter
-                     * @param pickResult A pick pickResult result containing the ID of the Entity - see {@link Scene/pick:method"}}Scene#pick(){{/crossLink}}.
-                     */
-                    self.fire("hoverEnter", pickResult, true);
-                    lastPickedEntityId = pickedEntityId;
-                }
-                /**
-                 * Fired continuously while the pointer is moving while hovering over an {@link Entity}.
-                 * @event hover
-                 * @param pickResult A pick pickResult result containing the ID of the Entity - see {@link Scene/pick:method"}}Scene#pick(){{/crossLink}}.
-                 */
-                self.fire("hover", pickResult, true);
-                if (pickResult.worldPos) {
-                    pickedSurface = true;
-
-                    /**
-                     * Fired while the pointer hovers over the surface of an {@link Entity}.
-                     *
-                     * This event provides 3D information about the point on the surface that the pointer is
-                     * hovering over.
-                     *
-                     * @event hoverSurface
-                     * @param pickResult A surface pick pickResult result, containing the ID of the Entity and 3D info on the
-                     * surface position - see {@link Scene/pick:method"}}Scene#pick(){{/crossLink}}.
-                     */
-                    self.fire("hoverSurface", pickResult, true);
-                }
-            } else {
-                if (lastPickedEntityId !== undefined) {
-                    /**
-                     * Fired whenever the pointer no longer hovers over an {@link Entity}.
-                     * @event hoverOut
-                     * @param entity The Entity
-                     */
-                    self.fire("hoverOut", {
-                        entity: scene.objects[lastPickedEntityId]
-                    }, true);
-                    lastPickedEntityId = undefined;
-                }
-                /**
-                 * Fired continuously while the pointer is moving but not hovering over anything.
-                 *
-                 * @event hoverOff
-                 */
-                self.fire("hoverOff", {
-                    canvasPos: pickCursorPos
-                }, true);
-            }
-            needPickEntity = false;
-            needPickSurface = false;
-        }
-
-        scene.on("tick", updatePick);
-
-        //------------------------------------------------------------------------------------
-        // Mouse, touch and keyboard camera control
-        //------------------------------------------------------------------------------------
-
-        (function () {
-
-            let rotateVx = 0;
-            let rotateVy = 0;
-            let panVx = 0;
-            let panVy = 0;
-            let panVz = 0;
-            let vZoom = 0;
-            const mousePos = math.vec2();
-            let panToMouse = false;
-
-            let ctrlDown = false;
-            let altDown = false;
-            let shiftDown = false;
-            const keyDown = {};
-
-            const EPSILON = 0.001;
-
-            const getEyeLookDist = (function () {
-                const vec = new Float32Array(3);
-                return function () {
-                    return math.lenVec3(math.subVec3(camera.look, camera.eye, vec));
-                };
-            })();
-
-            const getInverseProjectMat = (function () {
-                let projMatDirty = true;
-                camera.on("projMatrix", function () {
-                    projMatDirty = true;
-                });
-                const inverseProjectMat = math.mat4();
-                return function () {
-                    if (projMatDirty) {
-                        math.inverseMat4(camera.projMatrix, inverseProjectMat);
-                    }
-                    return inverseProjectMat;
-                }
-            })();
-
-            const getTransposedProjectMat = (function () {
-                let projMatDirty = true;
-                camera.on("projMatrix", function () {
-                    projMatDirty = true;
-                });
-                const transposedProjectMat = math.mat4();
-                return function () {
-                    if (projMatDirty) {
-                        math.transposeMat4(camera.projMatrix, transposedProjectMat);
-                    }
-                    return transposedProjectMat;
-                }
-            })();
-
-            const getInverseViewMat = (function () {
-                let viewMatDirty = true;
-                camera.on("viewMatrix", function () {
-                    viewMatDirty = true;
-                });
-                const inverseViewMat = math.mat4();
-                return function () {
-                    if (viewMatDirty) {
-                        math.inverseMat4(camera.viewMatrix, inverseViewMat);
-                    }
-                    return inverseViewMat;
-                }
-            })();
-
-            const getSceneDiagSize = (function () {
-                let sceneSizeDirty = true;
-                let diag = 1; // Just in case
-                scene.on("boundary", function () {
-                    sceneSizeDirty = true;
-                });
-                return function () {
-                    if (sceneSizeDirty) {
-                        diag = math.getAABB3Diag(scene.aabb);
-                    }
-                    return diag;
-                };
-            })();
-
-            const panToMousePos = (function () {
-
-                const cp = math.vec4();
-                const viewPos = math.vec4();
-                const worldPos = math.vec4();
-                const eyeCursorVec = math.vec3();
-
-                const unproject = function (inverseProjMat, inverseViewMat, mousePos, z, viewPos, worldPos) {
-                    const canvas = scene.canvas.canvas;
-                    const halfCanvasWidth = canvas.offsetWidth / 2.0;
-                    const halfCanvasHeight = canvas.offsetHeight / 2.0;
-                    cp[0] = (mousePos[0] - halfCanvasWidth) / halfCanvasWidth;
-                    cp[1] = (mousePos[1] - halfCanvasHeight) / halfCanvasHeight;
-                    cp[2] = z;
-                    cp[3] = 1.0;
-                    math.mulMat4v4(inverseProjMat, cp, viewPos);
-                    math.mulVec3Scalar(viewPos, 1.0 / viewPos[3]); // Normalize homogeneous coord
-                    viewPos[3] = 1.0;
-                    viewPos[1] *= -1; // TODO: Why is this reversed?
-                    math.mulMat4v4(inverseViewMat, viewPos, worldPos);
-                };
-
-                return function (mousePos, factor) {
-                    const inverseProjMat = getInverseProjectMat();
-                    const inverseViewMat = getInverseViewMat();
-
-                    // Get last two columns of projection matrix
-                    const transposedProjectMat = getTransposedProjectMat();
-                    const Pt3 = transposedProjectMat.subarray(8, 12);
-                    const Pt4 = transposedProjectMat.subarray(12);
-                    const D = [0, 0, -( getSceneDiagSize()), 1];
-                    const Z = math.dotVec4(D, Pt3) / math.dotVec4(D, Pt4);
-
-                    unproject(inverseProjMat, inverseViewMat, mousePos, Z, viewPos, worldPos);
-
-                    math.subVec3(worldPos, camera.eye, eyeCursorVec);
-                    math.normalizeVec3(eyeCursorVec);
-
-                    const px = eyeCursorVec[0] * factor;
-                    const py = eyeCursorVec[1] * factor;
-                    const pz = eyeCursorVec[2] * factor;
-
-                    const eye = camera.eye;
-                    const look = camera.look;
-
-                    camera.eye = [eye[0] + px, eye[1] + py, eye[2] + pz];
-                    camera.look = [look[0] + px, look[1] + py, look[2] + pz];
-                };
-            })();
-
-            const panToWorldPos = (function () {
-                const eyeCursorVec = math.vec3();
-                return function (worldPos, factor) {
-                    math.subVec3(worldPos, camera.eye, eyeCursorVec);
-                    math.normalizeVec3(eyeCursorVec);
-                    const px = eyeCursorVec[0] * factor;
-                    const py = eyeCursorVec[1] * factor;
-                    const pz = eyeCursorVec[2] * factor;
-                    const eye = camera.eye;
-                    const look = camera.look;
-                    camera.eye = [eye[0] + px, eye[1] + py, eye[2] + pz];
-                    camera.look = [look[0] + px, look[1] + py, look[2] + pz];
-                };
-            })();
-
-            scene.on("tick", function () {
-
-                const cameraInertia = self._inertia;
-
-                if (Math.abs(rotateVx) < EPSILON) {
-                    rotateVx = 0;
-                }
-
-                if (Math.abs(rotateVy) < EPSILON) {
-                    rotateVy = 0;
-                }
-
-                if (rotateVy !== 0 || rotateVx !== 0) {
-
-                    if (self._pivoter.getPivoting()) {
-                        self._pivoter.continuePivot(rotateVy, rotateVx);
-
-                    } else {
-
-                        if (rotateVx !== 0) {
-
-                            if (self._firstPerson) {
-                                camera.pitch(-rotateVx);
-
-                            } else {
-                                camera.orbitPitch(rotateVx);
-                            }
-                        }
-
-                        if (rotateVy !== 0) {
-
-                            if (self._firstPerson) {
-                                camera.yaw(rotateVy);
-
-                            } else {
-                                camera.orbitYaw(rotateVy);
-                            }
-                        }
-                    }
-
-                    rotateVx *= cameraInertia;
-                    rotateVy *= cameraInertia;
-                } else {
-                    self._pivoter.hidePivot();
-                }
-
-                if (Math.abs(panVx) < EPSILON) {
-                    panVx = 0;
-                }
-
-                if (Math.abs(panVy) < EPSILON) {
-                    panVy = 0;
-                }
-
-                if (Math.abs(panVz) < EPSILON) {
-                    panVz = 0;
-                }
-
-                if (panVx !== 0 || panVy !== 0 || panVz !== 0) {
-                    const f = getEyeLookDist() / 80;
-                    if (self._walking) {
-                        let y = camera.eye[1];
-                        camera.pan([panVx * f, panVy * f, panVz * f]);
-                        let eye = camera.eye;
-                        eye[1] = y;
-                        camera.eye = eye;
-                    } else {
-                        if (self._pivoter.getPivoting()) {
-                            self._pivoter.showPivot();
-                        }
-                        camera.pan([panVx * f, panVy * f, panVz * f]);
-                    }
-                }
-
-                panVx *= cameraInertia;
-                panVy *= cameraInertia;
-                panVz *= cameraInertia;
-
-                if (Math.abs(vZoom) < EPSILON) {
-                    vZoom = 0;
-                }
-
-                if (vZoom !== 0) {
-                    if (self._firstPerson) {
-                        let y;
-                        if (self._walking) {
-                            y = camera.eye[1];
-                        }
-                        if (panToMouse) { // Using mouse input
-                            panToMousePos(mousePos, -vZoom * 2);
-                        } else {
-                            camera.pan([0, 0, vZoom]); // Touchscreen input with no cursor
-                        }
-                        if (self._walking) {
-                            let eye = camera.eye;
-                            eye[1] = y;
-                            camera.eye = eye;
-                        }
-                    } else {
-                        // Do both zoom and ortho scale so that we can switch projections without weird scale jumps
-                        if (self._panToPointer) {
-                            panToMousePos(mousePos, -vZoom * 2);
-                        } else if (self._panToPivot) {
-                            panToWorldPos(self._pivoter.getPivotPos(), -vZoom); // FIXME: What about when pivotPos undefined?
-                        } else {
-                            camera.zoom(vZoom);
-                        }
-                        camera.ortho.scale = camera.ortho.scale + vZoom;
-                    }
-                    vZoom *= cameraInertia;
-                }
-            });
-
-            function getZoomRate() {
-                const aabb = scene.aabb;
-                const xsize = aabb[3] - aabb[0];
-                const ysize = aabb[4] - aabb[1];
-                const zsize = aabb[5] - aabb[2];
-                let max = (xsize > ysize ? xsize : ysize);
-                max = (zsize > max ? zsize : max);
-                return max / 30;
-            }
-
-            document.addEventListener("keydown", function (e) {
-                if (!self._active || (!scene.input.keyboardEnabled)) {
-                    return;
-                }
-                if (e.target.tagName !== "INPUT" && e.target.tagName !== "TEXTAREA") {
-                    ctrlDown = e.ctrlKey || e.keyCode === 17 || e.metaKey; // !important, treat Windows or Mac Command Key as ctrl
-                    altDown = e.altKey || e.keyCode === 18;
-                    shiftDown = e.keyCode === 16;
-                    keyDown[e.keyCode] = true;
-                }
-            }, true);
-
-            document.addEventListener("keyup", function (e) {
-                if (!self._active || (!scene.input.keyboardEnabled)) {
-                    return;
-                }
-                if (e.target.tagName !== "INPUT" && e.target.tagName !== "TEXTAREA") {
-                    if (e.ctrlKey || e.keyCode === 17) {
-                        ctrlDown = false;
-                    }
-                    if (e.altKey || e.keyCode === 18) {
-                        altDown = false;
-                    }
-                    if (e.keyCode === 16) {
-                        shiftDown = false;
-                    }
-                    keyDown[e.keyCode] = false;
-                }
-            });
-
-            // Mouse camera rotate, pan and zoom
-
-            (function () {
-
-                let lastX;
-                let lastY;
-                let lastXDown = 0;
-                let lastYDown = 0;
-                let xDelta = 0;
-                let yDelta = 0;
-                let down = false;
-                let mouseDownMiddle;
-                let mouseDownRight;
-
-                canvas.addEventListener("mousedown", function (e) {
-                    if (!(self._active && self._pointerEnabled)) {
-                        return;
-                    }
-                    over = true;
-                    switch (e.which) {
-                        case 1: // Left button
-                            self.scene.canvas.canvas.style.cursor = "move";
-                            down = true;
-                            xDelta = 0;
-                            yDelta = 0;
-                            getCanvasPosFromEvent(e, mousePos);
-                            lastX = mousePos[0];
-                            lastY = mousePos[1];
-                            lastXDown = mousePos[0];
-                            lastYDown = mousePos[1];
-                            break;
-                        case 2: // Middle/both buttons
-                            mouseDownMiddle = true;
-                            if (!self._panRightClick) {
-                                self.scene.canvas.canvas.style.cursor = "move";
-                                down = true;
-                                xDelta = 0;
-                                yDelta = 0;
-                                getCanvasPosFromEvent(e, mousePos);
-                                lastX = mousePos[0];
-                                lastY = mousePos[1];
-                                lastXDown = mousePos[0];
-                                lastYDown = mousePos[1];
-                            }
-                            break;
-                        case 3: // Right button
-                            mouseDownRight = true;
-                            if (self._panRightClick) {
-                                self.scene.canvas.canvas.style.cursor = "move";
-                                down = true;
-                                xDelta = 0;
-                                yDelta = 0;
-                                getCanvasPosFromEvent(e, mousePos);
-                                lastX = mousePos[0];
-                                lastY = mousePos[1];
-                                lastXDown = mousePos[0];
-                                lastYDown = mousePos[1];
-                            }
-                            break;
-                    }
-                });
-
-                canvas.addEventListener("mouseup", function (e) {
-                    if (!(self._active && self._pointerEnabled)) {
-                        return;
-                    }
-                    switch (e.which) {
-                        case 1: // Left button
-                            break;
-                        case 2: // Middle/both buttons
-                            mouseDownMiddle = false;
-                            break;
-                        case 3: // Right button
-                            mouseDownRight = false;
-                            getCanvasPosFromEvent(e, mousePos);
-                            const x = mousePos[0];
-                            const y = mousePos[1];
-                            if (Math.abs(x - lastXDown) < 3 && Math.abs(y - lastYDown) < 3) {
-                                self.fire("rightClick", {
-                                    canvasPos: pickCursorPos,
-                                    event: e
-                                }, true);
-                            }
-                            break;
-                    }
-                    self.scene.canvas.canvas.style.removeProperty("cursor");
-                    down = false;
-                    xDelta = 0;
-                    yDelta = 0;
-                });
-
-                document.addEventListener("mouseup", function (e) {
-                    if (!(self._active && self._pointerEnabled)) {
-                        return;
-                    }
-                    switch (e.which) {
-                        case 1: // Left button
-                            break;
-                        case 2: // Middle/both buttons
-                            mouseDownMiddle = false;
-                            break;
-                        case 3: // Right button
-                            mouseDownRight = false;
-                            break;
-                    }
-                    self.scene.canvas.canvas.style.removeProperty("cursor");
-                    down = false;
-                    xDelta = 0;
-                    yDelta = 0;
-                });
-
-                canvas.addEventListener("mouseenter", function () {
-                    if (!(self._active && self._pointerEnabled)) {
-                        return;
-                    }
-                    over = true;
-                    xDelta = 0;
-                    yDelta = 0;
-                });
-
-                canvas.addEventListener("mouseleave", function () {
-                    if (!(self._active && self._pointerEnabled)) {
-                        return;
-                    }
-                    over = false;
-                    xDelta = 0;
-                    yDelta = 0;
-                });
-
-                canvas.addEventListener("mousemove", function (e) {
-                    if (!(self._active && self._pointerEnabled)) {
-                        return;
-                    }
-                    if (!over) {
-                        return;
-                    }
-                    getCanvasPosFromEvent(e, mousePos);
-                    panToMouse = true;
-                    if (!down) {
-                        return;
-                    }
-                    const x = mousePos[0];
-                    const y = mousePos[1];
-                    xDelta += (x - lastX) * mouseOrbitRate;
-                    yDelta += (y - lastY) * mouseOrbitRate;
-                    lastX = x;
-                    lastY = y;
-                });
-
-                scene.on("tick", function () {
-                    if (!(self._active && self._pointerEnabled)) {
-                        return;
-                    }
-                    if (Math.abs(xDelta) === 0 && Math.abs(yDelta) === 0) {
-                        return;
-                    }
-
-                    const panning = shiftDown || (!self._panRightClick && mouseDownMiddle) || (self._panRightClick && mouseDownRight);
-
-                    if (panning) {
-
-                        // Panning
-                        if (shiftDown || (!self._panRightClick && mouseDownMiddle) || (self._panRightClick && mouseDownRight)) {
-                            panVx = xDelta * mousePanRate;
-                            panVy = yDelta * mousePanRate;
-                        }
-
-                    } else {
-
-                        if (!self._planView) {
-
-                            // Orbiting
-
-                            rotateVy = -xDelta * mouseOrbitRate;
-                            rotateVx = yDelta * mouseOrbitRate;
-                        }
-                    }
-
-                    xDelta = 0;
-                    yDelta = 0;
-                });
-
-                // Mouse wheel zoom
-
-                canvas.addEventListener("wheel", function (e) {
-                    if (!(self._active && self._pointerEnabled)) {
-                        return;
-                    }
-                    const delta = Math.max(-1, Math.min(1, -e.deltaY * 40));
-                    if (delta === 0) {
-                        return;
-                    }
-                    const d = delta / Math.abs(delta);
-                    vZoom = -d * getZoomRate() * mouseZoomRate;
-                    e.preventDefault();
-                });
-
-                // Keyboard zoom
-
-                scene.on("tick", function (e) {
-                    if (!(self._active && self._pointerEnabled) || (!scene.input.keyboardEnabled)) {
-                        return;
-                    }
-                    if (!over) {
-                        return;
-                    }
-                    const elapsed = e.deltaTime;
-                    if (!self.ctrlDown && !self.altDown) {
-                        const wkey = input.keyDown[input.KEY_ADD];
-                        const skey = input.keyDown[input.KEY_SUBTRACT];
-                        if (wkey || skey) {
-                            if (self._pivoting) {
-                                self._pivoter.startPivot();
-                            }
-                            if (skey) {
-                                vZoom = elapsed * getZoomRate() * keyboardZoomRate;
-                            } else if (wkey) {
-                                vZoom = -elapsed * getZoomRate() * keyboardZoomRate;
-                            }
-                        }
-                    }
-                });
-
-                // Keyboard panning
-
-                (function () {
-
-                    scene.on("tick", function (e) {
-                        if (!(self._active && self._pointerEnabled) || (!scene.input.keyboardEnabled)) {
-                            return;
-                        }
-                        if (!over) {
-                            return;
-                        }
-
-                        const elapsed = e.deltaTime;
-
-                        // if (!self.ctrlDown && !self.altDown) {
-                        let front, back, left, right, up, down;
-                        if (self._keyboardLayout === 'azerty') {
-                            front = input.keyDown[input.KEY_Z];
-                            back = input.keyDown[input.KEY_S];
-                            left = input.keyDown[input.KEY_Q];
-                            right = input.keyDown[input.KEY_D];
-                            up = input.keyDown[input.KEY_W];
-                            down = input.keyDown[input.KEY_X];
-                        } else {
-                            front = input.keyDown[input.KEY_W];
-                            back = input.keyDown[input.KEY_S];
-                            left = input.keyDown[input.KEY_A];
-                            right = input.keyDown[input.KEY_D];
-                            up = input.keyDown[input.KEY_Z];
-                            down = input.keyDown[input.KEY_X];
-                        }
-                        if (front || back || left || right || up || down) {
-                            if (self._pivoting) {
-                                self._pivoter.startPivot();
-                            }
-                            if (down) {
-                                panVy += elapsed * keyboardPanRate;
-                            } else if (up) {
-                                panVy += -elapsed * keyboardPanRate;
-                            }
-                            if (right) {
-                                panVx += -elapsed * keyboardPanRate;
-                            } else if (left) {
-                                panVx += elapsed * keyboardPanRate;
-                            }
-                            if (back) {
-                                panVz = elapsed * keyboardPanRate;
-                            } else if (front) {
-                                panVz = -elapsed * keyboardPanRate;
-                            }
-                        }
-                        //          }
-                    });
-                })();
-            })();
-
-            // Touch camera rotate, pan and zoom
-
-            (function () {
-                const tapStartPos = new Float32Array(2);
-
-                const lastTouches = [];
-                let numTouches = 0;
-
-                const touch0Vec = new Float32Array(2);
-                const touch1Vec = new Float32Array(2);
-
-                const MODE_CHANGE_TIMEOUT = 50;
-                const MODE_NONE = 0;
-                const MODE_ROTATE = 1;
-                const MODE_PAN = 1 << 1;
-                const MODE_ZOOM = 1 << 2;
-                let currentMode = MODE_NONE;
-                let transitionTime = Date.now();
-
-                function checkMode(mode) {
-                    const currentTime = Date.now();
-                    if (currentMode === MODE_NONE) {
-                        currentMode = mode;
-                        return true;
-                    }
-                    if (currentMode === mode) {
-                        return currentTime - transitionTime > MODE_CHANGE_TIMEOUT;
-                    }
-                    currentMode = mode;
-                    transitionTime = currentTime;
-                    return false;
-                }
-
-                canvas.addEventListener("touchstart", function (event) {
-                    if (!(self._active && self._pointerEnabled)) {
-                        return;
-                    }
-                    const touches = event.touches;
-                    const changedTouches = event.changedTouches;
-
-                    if (touches.length === 1 && changedTouches.length === 1) {
-                        tapStartPos[0] = touches[0].pageX;
-                        tapStartPos[1] = touches[0].pageY;
-                    }
-
-                    while (lastTouches.length < touches.length) {
-                        lastTouches.push(new Float32Array(2));
-                    }
-
-                    for (let i = 0, len = touches.length; i < len; ++i) {
-                        lastTouches[i][0] = touches[i].pageX;
-                        lastTouches[i][1] = touches[i].pageY;
-                    }
-
-                    currentMode = MODE_NONE;
-                    numTouches = touches.length;
-
-                    event.stopPropagation();
-                }, {passive: true});
-
-                canvas.addEventListener("touchmove", function (event) {
-                    if (!(self._active && self._pointerEnabled)) {
-                        return;
-                    }
-                    const touches = event.touches;
-
-                    if (numTouches === 1) {
-
-                        var touch0 = touches[0];
-
-                        if (checkMode(MODE_ROTATE)) {
-                            const deltaX = touch0.pageX - lastTouches[0][0];
-                            const deltaY = touch0.pageY - lastTouches[0][1];
-                            const rotateX = deltaX * touchRotateRate;
-                            const rotateY = deltaY * touchRotateRate;
-                            rotateVx += rotateY;
-                            rotateVy += -rotateX;
-                        }
-
-                    } else if (numTouches === 2) {
-
-                        var touch0 = touches[0];
-                        const touch1 = touches[1];
-
-                        math.subVec2([touch0.pageX, touch0.pageY], lastTouches[0], touch0Vec);
-                        math.subVec2([touch1.pageX, touch1.pageY], lastTouches[1], touch1Vec);
-
-                        const panning = math.dotVec2(touch0Vec, touch1Vec) > 0;
-
-                        if (panning && checkMode(MODE_PAN)) {
-                            math.subVec2([touch0.pageX, touch0.pageY], lastTouches[0], touch0Vec);
-                            panVx += touch0Vec[0] * touchPanRate;
-                            panVy += touch0Vec[1] * touchPanRate;
-                        }
-
-                        if (!panning && checkMode(MODE_ZOOM)) {
-                            const d1 = math.distVec2([touch0.pageX, touch0.pageY], [touch1.pageX, touch1.pageY]);
-                            const d2 = math.distVec2(lastTouches[0], lastTouches[1]);
-                            vZoom = (d2 - d1) * getZoomRate() * touchZoomRate;
-                        }
-                    }
-
-                    for (let i = 0; i < numTouches; ++i) {
-                        lastTouches[i][0] = touches[i].pageX;
-                        lastTouches[i][1] = touches[i].pageY;
-                    }
-
-                    event.stopPropagation();
-                }, {passive: true});
-
-            })();
-
-            // Keyboard rotation
-
-            (function () {
-
-                scene.on("tick", function (e) {
-                    if (!(self._active && self._pointerEnabled) || (!scene.input.keyboardEnabled)) {
-                        return;
-                    }
-                    if (!over) {
-                        return;
-                    }
-                    if (self._planView) {
-                        return;
-                    }
-                    const elapsed = e.deltaTime;
-                    const left = input.keyDown[input.KEY_LEFT_ARROW];
-                    const right = input.keyDown[input.KEY_RIGHT_ARROW];
-                    const up = input.keyDown[input.KEY_UP_ARROW];
-                    const down = input.keyDown[input.KEY_DOWN_ARROW];
-                    if (left || right || up || down) {
-                        if (self._pivoting) {
-                            self._pivoter.startPivot();
-                        }
-                        if (right) {
-                            rotateVy += -elapsed * keyboardOrbitRate;
-
-                        } else if (left) {
-                            rotateVy += elapsed * keyboardOrbitRate;
-                        }
-                        if (down) {
-                            rotateVx += elapsed * keyboardOrbitRate;
-
-                        } else if (up) {
-                            rotateVx += -elapsed * keyboardOrbitRate;
-                        }
-                    }
-                });
-            })();
-
-            // First-person rotation about vertical axis with A and E keys for AZERTY layout
-
-            (function () {
-
-                scene.on("tick", function (e) {
-                    if (!(self._active && self._pointerEnabled) || (!scene.input.keyboardEnabled)) {
-                        return;
-                    }
-                    if (!over) {
-                        return;
-                    }
-                    const elapsed = e.deltaTime;
-                    let rotateLeft;
-                    let rotateRight;
-                    if (self._keyboardLayout === 'azerty') {
-                        rotateLeft = input.keyDown[input.KEY_A];
-                        rotateRight = input.keyDown[input.KEY_E];
-                    } else {
-                        rotateLeft = input.keyDown[input.KEY_Q];
-                        rotateRight = input.keyDown[input.KEY_E];
-                    }
-                    if (rotateRight || rotateLeft) {
-                        if (rotateLeft) {
-                            rotateVy += elapsed * keyboardOrbitRate;
-                        } else if (rotateRight) {
-                            rotateVy += -elapsed * keyboardOrbitRate;
-                        }
-                    }
-                });
-
-            })();
-        })();
-
-        //------------------------------------------------------------------------------------
-        // Mouse and touch picking
-        //------------------------------------------------------------------------------------
-
-        (function () {
-
-            // Mouse picking
-
-            (function () {
-
-                canvas.addEventListener("mousemove", function (e) {
-
-                    if (!(self._active && self._pointerEnabled)) {
-                        return;
-                    }
-
-                    getCanvasPosFromEvent(e, pickCursorPos);
-
-                    if (self.hasSubs("hover") || self.hasSubs("hoverOut") || self.hasSubs("hoverOff") || self.hasSubs("hoverSurface")) {
-                        needPickEntity = true;
-                    }
-                });
-
-                let downX;
-                let downY;
-                let downCursorX;
-                let downCursorY;
-
-                canvas.addEventListener('mousedown', function (e) {
-                    if (!(self._active && self._pointerEnabled)) {
-                        return;
-                    }
-                    downX = e.clientX;
-                    downY = e.clientY;
-                    downCursorX = pickCursorPos[0];
-                    downCursorY = pickCursorPos[1];
-
-                    needPickSurface = self._pivoting;
-                    updatePick();
-                    if (self._pivoting) {
-                        if (e.which === 1) {// Left button
-                            if (pickResult) {
-                                self._pivoter.startPivot(pickResult.worldPos);
-                            } else {
-                                self._pivoter.startPivot(); // Continue to use last pivot point
-                            }
-                        }
-                    }
-                });
-
-                canvas.addEventListener('mouseup', (function (e) {
-
-                    let clicks = 0;
-                    let timeout;
-
-                    return function (e) {
-
-                        if (!(self._active && self._pointerEnabled)) {
-                            return;
-                        }
-
-                        self._pivoter.hidePivot();
-
-                        if (Math.abs(e.clientX - downX) > 3 || Math.abs(e.clientY - downY) > 3) {
-                            return;
-                        }
-
-                        if (!self._doublePickFlyTo && !self.hasSubs("doublePicked") && !self.hasSubs("doublePickedSurface") && !self.hasSubs("doublePickedNothing")) {
-
-                            //  Avoid the single/double click differentiation timeout
-
-                            needPickSurface = !!self.hasSubs("pickedSurface");
-
-                            updatePick();
-
-                            if (pickResult) {
-
-                                /**
-                                 * Fired whenever the pointer has picked (ie. clicked or tapped) an {@link Entity}.
-                                 *
-                                 * @event picked
-                                 * @param pickResult A surface pick pickResult result containing the ID of the Entity - see {@link Scene/pick:method"}}Scene#pick(){{/crossLink}}.
-                                 */
-                                self.fire("picked", pickResult, true);
-                                if (pickedSurface) {
-
-                                    /**
-                                     * Fired when the pointer has picked (ie. clicked or tapped) the surface of an {@link Entity}.
-                                     *
-                                     * This event provides 3D information about the point on the surface that the pointer has picked.
-                                     *
-                                     * @event pickedSurface
-                                     * @param pickResult A surface pick pickResult result, containing the ID of the Entity and 3D info on the
-                                     * surface possition - see {@link Scene/pick:method"}}Scene#pick(){{/crossLink}}.
-                                     */
-                                    self.fire("pickedSurface", pickResult, true);
-                                }
-                            } else {
-
-                                /**
-                                 * Fired when the pointer attempted a pick (ie. clicked or tapped), but has pickResult nothing.
-                                 *
-                                 * @event pickedNothing
-                                 */
-                                self.fire("pickedNothing", {}, true);
-                            }
-
-                            return;
-                        }
-
-                        clicks++;
-
-                        if (clicks === 1) {
-                            timeout = setTimeout(function () {
-
-                                needPickEntity = self._doublePickFlyTo;
-                                needPickSurface = needPickEntity || !!self.hasSubs("pickedSurface");
-                                pickCursorPos[0] = downCursorX;
-                                pickCursorPos[1] = downCursorY;
-
-                                updatePick();
-
-                                if (pickResult) {
-                                    self.fire("picked", pickResult, true);
-                                    if (pickedSurface) {
-                                        self.fire("pickedSurface", pickResult, true);
-                                    }
-                                } else {
-                                    self.fire("pickedNothing", {}, true);
-                                }
-
-                                clicks = 0;
-                            }, 250);  // FIXME: Too short for track pads
-
-                        } else {
-
-                            clearTimeout(timeout);
-
-                            needPickEntity = self._doublePickFlyTo;
-                            needPickSurface = needPickEntity && !!self.hasSubs("doublePickedSurface");
-
-                            updatePick();
-
-                            if (pickResult) {
-                                /**
-                                 * Fired whenever the pointer has double-picked (ie. double-clicked or double-tapped) an {@link Entity}.
-                                 *
-                                 * @event picked
-                                 * @param pickResult A surface pick pickResult result containing the ID of the Entity - see {@link Scene/pick:method"}}Scene#pick(){{/crossLink}}.
-                                 */
-                                self.fire("doublePicked", pickResult, true);
-                                if (pickedSurface) {
-                                    /**
-                                     * Fired when the pointer has double-picked (ie. double-clicked or double-tapped) the surface of an {@link Entity}.
-                                     *
-                                     * This event provides 3D information about the point on the surface that the pointer has picked.
-                                     *
-                                     * @event doublePickedSurface
-                                     * @param pickResult A surface pick pickResult result, containing the ID of the Entity and 3D info on the
-                                     * surface possition - see {@link Scene/pick:method"}}Scene#pick(){{/crossLink}}.
-                                     */
-                                    self.fire("doublePickedSurface", pickResult, true);
-                                }
-                                if (self._doublePickFlyTo) {
-                                    self._flyTo(pickResult);
-                                }
-                            } else {
-
-                                /**
-                                 * Fired when the pointer attempted a double-pick (ie. double-clicked or double-tapped), but has pickResult nothing.
-                                 *
-                                 * @event doublePickedNothing
-                                 */
-                                self.fire("doublePickedNothing", true);
-                                if (self._doublePickFlyTo) {
-                                    self._flyTo();
-                                }
-                            }
-                            clicks = 0;
-                        }
-                    };
-                })(), false);
-
-            })();
-
-            // Touch picking
-
-            (function () {
-
-                const TAP_INTERVAL = 150;
-                const DBL_TAP_INTERVAL = 325;
-                const TAP_DISTANCE_THRESHOLD = 4;
-
-                let touchStartTime;
-                const activeTouches = [];
-                const tapStartPos = new Float32Array(2);
-                let tapStartTime = -1;
-                let lastTapTime = -1;
-
-                canvas.addEventListener("touchstart", function (event) {
-
-                    if (!(self._active && self._pointerEnabled)) {
-                        return;
-                    }
-
-                    const touches = event.touches;
-                    const changedTouches = event.changedTouches;
-
-                    touchStartTime = Date.now();
-
-                    if (touches.length === 1 && changedTouches.length === 1) {
-                        tapStartTime = touchStartTime;
-                        tapStartPos[0] = touches[0].pageX;
-                        tapStartPos[1] = touches[0].pageY;
-                    } else {
-                        tapStartTime = -1;
-                    }
-
-                    while (activeTouches.length < touches.length) {
-                        activeTouches.push(new Float32Array(2));
-                    }
-
-                    for (let i = 0, len = touches.length; i < len; ++i) {
-                        activeTouches[i][0] = touches[i].pageX;
-                        activeTouches[i][1] = touches[i].pageY;
-                    }
-
-                    activeTouches.length = touches.length;
-
-                    event.stopPropagation();
-                }, {passive: true});
-
-                //canvas.addEventListener("touchmove", function (event) {
-                //    event.preventDefault();
-                //    event.stopPropagation();
-                //});
-
-                canvas.addEventListener("touchend", function (event) {
-
-                    if (!(self._active && self._pointerEnabled)) {
-                        return;
-                    }
-
-                    const currentTime = Date.now();
-                    const touches = event.touches;
-                    const changedTouches = event.changedTouches;
-
-                    // process tap
-
-                    if (touches.length === 0 && changedTouches.length === 1) {
-
-                        if (tapStartTime > -1 && currentTime - tapStartTime < TAP_INTERVAL) {
-
-                            if (lastTapTime > -1 && tapStartTime - lastTapTime < DBL_TAP_INTERVAL) {
-
-                                // Double-tap
-
-                                pickCursorPos[0] = Math.round(changedTouches[0].clientX);
-                                pickCursorPos[1] = Math.round(changedTouches[0].clientY);
-                                needPickEntity = true;
-                                needPickSurface = !!self.hasSubs("pickedSurface");
-
-                                updatePick();
-
-                                if (pickResult) {
-                                    self.fire("doublePicked", pickResult, true);
-                                    if (pickedSurface) {
-                                        self.fire("doublePickedSurface", pickResult, true);
-                                    }
-                                    if (self._doublePickFlyTo) {
-                                        self._flyTo(pickResult);
-                                    }
-                                } else {
-                                    self.fire("doublePickedNothing", true);
-                                    if (self._doublePickFlyTo) {
-                                        self._flyTo();
-                                    }
-                                }
-
-                                lastTapTime = -1;
-
-                            } else if (math.distVec2(activeTouches[0], tapStartPos) < TAP_DISTANCE_THRESHOLD) {
-
-                                // Single-tap
-
-                                pickCursorPos[0] = Math.round(changedTouches[0].clientX);
-                                pickCursorPos[1] = Math.round(changedTouches[0].clientY);
-                                needPickEntity = true;
-                                needPickSurface = !!self.hasSubs("pickedSurface");
-
-                                updatePick();
-
-                                if (pickResult) {
-                                    self.fire("picked", pickResult, true);
-                                    if (pickedSurface) {
-                                        self.fire("pickedSurface", pickResult, true);
-                                    }
-                                } else {
-                                    self.fire("pickedNothing", {}, true);
-                                }
-
-                                lastTapTime = currentTime;
-                            }
-
-                            tapStartTime = -1;
-                        }
-                    }
-
-                    activeTouches.length = touches.length;
-
-                    for (let i = 0, len = touches.length; i < len; ++i) {
-                        activeTouches[i][0] = touches[i].pageX;
-                        activeTouches[i][1] = touches[i].pageY;
-                    }
-
-                    event.stopPropagation();
-                }, {passive: true});
-            })();
-        })();
-
-        //------------------------------------------------------------------------------------
-        // Keyboard camera axis views
-        //------------------------------------------------------------------------------------
-
-        (function () {
-
-            const KEY_NUM_1 = 49;
-            const KEY_NUM_2 = 50;
-            const KEY_NUM_3 = 51;
-            const KEY_NUM_4 = 52;
-            const KEY_NUM_5 = 53;
-            const KEY_NUM_6 = 54;
-
-            const center = math.vec3();
-            const tempVec3a = math.vec3();
-            const tempVec3b = math.vec3();
-            const tempVec3c = math.vec3();
-
-            const cameraTarget = {
-                eye: new Float32Array(3),
-                look: new Float32Array(3),
-                up: new Float32Array(3)
-            };
-
-            document.addEventListener("keydown", function (e) {
-
-                if (!(self._active && self._pointerEnabled) || (!scene.input.keyboardEnabled)) {
-                    return;
-                }
-
-                if (!over) {
-                    return;
-                }
-
-                const keyCode = e.keyCode;
-
-                if (keyCode !== KEY_NUM_1 &&
-                    keyCode !== KEY_NUM_2 &&
-                    keyCode !== KEY_NUM_3 &&
-                    keyCode !== KEY_NUM_4 &&
-                    keyCode !== KEY_NUM_5 &&
-                    keyCode !== KEY_NUM_6) {
-                    return;
-                }
-
-                const aabb = scene.aabb;
-                const diag = math.getAABB3Diag(aabb);
-                center[0] = aabb[0] + aabb[3] / 2.0;
-                center[1] = aabb[1] + aabb[4] / 2.0;
-                center[2] = aabb[2] + aabb[5] / 2.0;
-                const dist = Math.abs((diag) / Math.tan(self._cameraFlight.fitFOV / 2));
-
-                switch (keyCode) {
-
-                    case KEY_NUM_1: // Right
-
-                        cameraTarget.eye.set(math.mulVec3Scalar(camera.worldRight, dist, tempVec3a));
-                        cameraTarget.look.set(center);
-                        cameraTarget.up.set(camera.worldUp);
-
-                        break;
-
-                    case KEY_NUM_2: // Back
-
-                        cameraTarget.eye.set(math.mulVec3Scalar(camera.worldForward, dist, tempVec3a));
-                        cameraTarget.look.set(center);
-                        cameraTarget.up.set(camera.worldUp);
-
-                        break;
-
-                    case KEY_NUM_3: // Left
-
-                        cameraTarget.eye.set(math.mulVec3Scalar(camera.worldRight, -dist, tempVec3a));
-                        cameraTarget.look.set(center);
-                        cameraTarget.up.set(camera.worldUp);
-
-                        break;
-
-                    case KEY_NUM_4: // Front
-
-                        cameraTarget.eye.set(math.mulVec3Scalar(camera.worldForward, -dist, tempVec3a));
-                        cameraTarget.look.set(center);
-                        cameraTarget.up.set(camera.worldUp);
-
-                        break;
-
-                    case KEY_NUM_5: // Top
-
-                        cameraTarget.eye.set(math.mulVec3Scalar(camera.worldUp, dist, tempVec3a));
-                        cameraTarget.look.set(center);
-                        cameraTarget.up.set(math.normalizeVec3(math.mulVec3Scalar(camera.worldForward, 1, tempVec3b), tempVec3c));
-
-                        break;
-
-                    case KEY_NUM_6: // Bottom
-
-                        cameraTarget.eye.set(math.mulVec3Scalar(camera.worldUp, -dist, tempVec3a));
-                        cameraTarget.look.set(center);
-                        cameraTarget.up.set(math.normalizeVec3(math.mulVec3Scalar(camera.worldForward, -1, tempVec3b)));
-
-                        break;
-
-                    default:
-                        return;
-                }
-
-                if (self._cameraFlight.duration > 0) {
-                    self._cameraFlight.flyTo(cameraTarget);
-                } else {
-                    self._cameraFlight.jumpTo(cameraTarget);
-                }
-            });
-
-        })();
-    }
-
-    _flyTo(pickResult) {
-
-        let pos;
-
-        if (pickResult && pickResult.worldPos) {
-            pos = pickResult.worldPos;
-        }
-
-        const aabb = pickResult ? pickResult.entity.aabb : this.scene.aabb;
-
-        if (pos) {
-
-            // Fly to look at point, don't change eye->look dist
-
-            const camera = this.scene.camera;
-            const diff = math.subVec3(camera.eye, camera.look, []);
-
-            this._cameraFlight.flyTo({
-                // look: pos,
-                // eye: xeokit.math.addVec3(pos, diff, []),
-                // up: camera.up,
-                aabb: aabb
-            });
-
-            // TODO: Option to back off to fit AABB in view
-
-        } else {
-
-            // Fly to fit target boundary in view
-
-            this._cameraFlight.flyTo({
-                aabb: aabb
-            });
-        }
-    }
-
+    /**
+     * Destroys this ````CameraControl````.
+     * @private
+     */
     destroy() {
-        this.active = false;
+        this._destroyHandlers();
+        this._destroyControllers();
+        this._cameraUpdater.destroy();
         super.destroy();
+    }
+
+    _destroyHandlers() {
+        for (let i = 0, len = this._handlers.length; i < len; i++) {
+            const handler = this._handlers[i];
+            if (handler.destroy) {
+                handler.destroy();
+            }
+        }
+    }
+
+    _destroyControllers() {
+        for (let i = 0, len = this._controllers.length; i < len; i++) {
+            const controller = this._controllers[i];
+            if (controller.destroy) {
+                controller.destroy();
+            }
+        }
     }
 }
 
@@ -23904,7 +25754,7 @@ class MetaModel {
     /**
      * @private
      */
-    constructor(metaScene, id, projectId, revisionId, rootMetaObject) {
+    constructor(metaScene, id, projectId, revisionId, author, createdAt, creatingApplication, schema, rootMetaObject) {
 
         /**
          * Globally-unique ID.
@@ -23926,11 +25776,54 @@ class MetaModel {
         this.projectId = projectId;
 
         /**
-         * The revision ID
+         * The revision ID, if available.
+         *
+         * Will be undefined if not available.
+         *
          * @property revisionId
          * @type {String|Number}
          */
         this.revisionId = revisionId;
+
+        /**
+         * The model author, if available.
+         *
+         * Will be undefined if not available.
+         *
+         * @property author
+         * @type {String}
+         */
+        this.author = author;
+
+        /**
+         * The date the model was created, if available.
+         *
+         * Will be undefined if not available.
+         *
+         * @property createdAt
+         * @type {String}
+         */
+        this.createdAt = createdAt;
+
+        /**
+         * The application that created the model, if available.
+         *
+         * Will be undefined if not available.
+         *
+         * @property creatingApplication
+         * @type {String}
+         */
+        this.creatingApplication = creatingApplication;
+
+        /**
+         * The model schema version, if available.
+         *
+         * Will be undefined if not available.
+         *
+         * @property schema
+         * @type {String}
+         */
+        this.schema = schema;
 
         /**
          * Metadata on the {@link Scene}.
@@ -24309,6 +26202,10 @@ class MetaScene {
         const projectId = metaModelData.projectId || "none";
         const revisionId = metaModelData.revisionId || "none";
         const newObjects = metaModelData.metaObjects;
+        const author = metaModelData.author;
+        const createdAt = metaModelData.createdAt;
+        const creatingApplication = metaModelData.creatingApplication;
+        const schema = metaModelData.schema;
         // if (options.excludeTypes) {
         //     excludeTypes = {};
         //     for (let i = 0, len = options.excludeTypes.length; i < len; i++) {
@@ -24316,7 +26213,7 @@ class MetaScene {
         //     }
         // }
 
-        const metaModel = new MetaModel(this, id, projectId, revisionId, null);
+        const metaModel = new MetaModel(this, id, projectId, revisionId, author, createdAt, creatingApplication, schema, null);
 
         this.metaModels[id] = metaModel;
 
@@ -24509,6 +26406,7 @@ class Viewer {
      * @param {Number[]} [cfg.origin=[0,0,0]] The Real-space 3D origin, in current measurement units, at which the World-space coordinate origin ````[0,0,0]```` sits.
      * @param {Boolean} [cfg.saoEnabled=false] Whether to enable Scalable Ambient Obscurance (SAO) effect. See {@link SAO} for more info.
      * @throws {String} Throws an exception when both canvasId or canvasElement are missing or they aren't pointing to a valid HTMLCanvasElement.
+     * @param {Boolean} [cfg.alphaDepthMask=true] Whether writing into the depth buffer is enabled or disabled when rendering transparent objects.
      */
     constructor(cfg) {
 
@@ -24543,7 +26441,8 @@ class Viewer {
             units: cfg.units,
             scale: cfg.scale,
             origin: cfg.origin,
-            saoEnabled: cfg.saoEnabled
+            saoEnabled: cfg.saoEnabled,
+            alphaDepthMask: (cfg.alphaDepthMask !== false)
         });
 
         /**
@@ -24714,7 +26613,22 @@ class Viewer {
     }
 
     /**
-     * Returns a snapshot of this Viewer's canvas as a Base64-encoded image.
+     * Enter snapshot mode.
+     *
+     * Switches rendering to a hidden snapshot canvas.
+     *
+     * Exit snapshot mode using {@link Viewer#endSnapshot}.
+     */
+    beginSnapshot() {
+        if (this._snapshotBegun) {
+            return;
+        }
+        this.scene._renderer.beginSnapshot();
+        this._snapshotBegun = true;
+    }
+
+    /**
+     * Gets a snapshot of this Viewer's {@link Scene} as a Base64-encoded image.
      *
      * #### Usage:
      *
@@ -24729,9 +26643,16 @@ class Viewer {
      * @param {Number} [params.width] Desired width of result in pixels - defaults to width of canvas.
      * @param {Number} [params.height] Desired height of result in pixels - defaults to height of canvas.
      * @param {String} [params.format="jpeg"] Desired format; "jpeg", "png" or "bmp".
-     * @returns {String} String-encoded image data.
+     * @returns {String} String-encoded image data URI.
      */
     getSnapshot(params = {}) {
+
+        const needFinishSnapshot = (!this._snapshotBegun);
+
+        if (!this._snapshotBegun) {
+            this.beginSnapshot();
+        }
+
         this.sendToPlugins("snapshotStarting"); // Tells plugins to hide things that shouldn't be in snapshot
 
         const resize = (params.width !== undefined && params.height !== undefined);
@@ -24749,9 +26670,9 @@ class Viewer {
             canvas.style.height = height + "px";
         }
 
-        this.scene.render(true);
+        this.scene._renderer.renderSnapshot();
 
-        const imageData = this.scene.canvas._getSnapshot(params);
+        const imageDataURI = this.scene._renderer.readSnapshot(params);
 
         if (resize) {
             canvas.style.width = saveCssWidth;
@@ -24764,7 +26685,26 @@ class Viewer {
 
         this.sendToPlugins("snapshotFinished");
 
-        return imageData;
+        if (needFinishSnapshot) {
+            this.endSnapshot();
+        }
+
+        return imageDataURI;
+    }
+
+    /**
+     * Exists snapshot mode.
+     *
+     * Switches rendering back to the main canvas.
+     *
+     */
+    endSnapshot() {
+        if (!this._snapshotBegun) {
+            return;
+        }
+        this.scene._renderer.endSnapshot();
+        this.scene._renderer.render({force: true});
+        this._snapshotBegun = false;
     }
 
     /** Destroys this Viewer.
@@ -24914,6 +26854,13 @@ class PerformanceMesh {
     /**
      * @private
      */
+    _setOffset(offset) {
+        this._layer.setOffset(this._portionId, offset);
+    }
+
+    /**
+     * @private
+     */
     _setHighlighted(flags) {
         this._layer.setHighlighted(this._portionId, flags);
     }
@@ -24956,8 +26903,15 @@ class PerformanceMesh {
     /**
      * @private
      */
-    _setPickable(flags) {
-        this._layer.setPickable(this._portionId, flags);
+    _setPickable(flags2) {
+        this._layer.setPickable(this._portionId, flags2);
+    }
+
+    /**
+     * @private
+     */
+    _setCulled(flags2) {
+        this._layer.setCulled(this._portionId, flags2);
     }
 
     /** @private */
@@ -25047,8 +27001,8 @@ class PerformanceNode {
          * @type {Scene}
          * @final
          */
-         this.scene = model.scene;
-        
+        this.scene = model.scene;
+
         /**
          * The PerformanceModel that contains this PerformanceNode.
          * @property model
@@ -25083,6 +27037,9 @@ class PerformanceNode {
 
         this._flags = flags;
         this._aabb = aabb;
+        this._offsetAABB = math.AABB3(aabb);
+
+        this._offset = math.vec3();
 
         if (this._isObject) {
             model.scene._registerObject(this);
@@ -25131,7 +27088,7 @@ class PerformanceNode {
      * @type {Number[]}
      */
     get aabb() {
-        return this._aabb;
+        return this._offsetAABB;
     }
 
     /**
@@ -25339,7 +27296,19 @@ class PerformanceNode {
      *
      * @type {Boolean}
      */
-    set culled(culled) { // TODO
+    set culled(culled) {
+        if (!!(this._flags & RENDER_FLAGS.CULLED) === culled) {
+            return; // Redundant update
+        }
+        if (culled) {
+            this._flags = this._flags | RENDER_FLAGS.CULLED;
+        } else {
+            this._flags = this._flags & ~RENDER_FLAGS.CULLED;
+        }
+        for (var i = 0, len = this.meshes.length; i < len; i++) {
+            this.meshes[i]._setCulled(this._flags);
+        }
+        this.model.glRedraw();
     }
 
     /**
@@ -25349,8 +27318,8 @@ class PerformanceNode {
      *
      * @type {Boolean}
      */
-    get culled() { // TODO
-        return false;
+    get culled() {
+        return this._getFlag(RENDER_FLAGS.CULLED);
     }
 
     /**
@@ -25447,7 +27416,7 @@ class PerformanceNode {
     }
 
     /**
-     * Gets the PerformanceNode's RGB colorize color, multiplies by the PerformanceNode's rendered fragment colors.
+     * Sets the PerformanceNode's RGB colorize color.
      *
      * Each element of the color is in range ````[0..1]````.
      *
@@ -25474,7 +27443,7 @@ class PerformanceNode {
     }
 
     /**
-     * Gets the PerformanceNode's RGB colorize color, multiplies by the PerformanceNode's rendered fragment colors.
+     * Gets the PerformanceNode's RGB colorize color.
      *
      * Each element of the color is in range ````[0..1]````.
      *
@@ -25502,18 +27471,26 @@ class PerformanceNode {
         if (this.meshes.length === 0) {
             return;
         }
-        if (opacity < 0) {
-            opacity = 0;
-        } else if (opacity > 1) {
-            opacity = 1;
+        const opacityUpdated = (opacity !== null && opacity !== undefined);
+        if (opacityUpdated) {
+            if (opacity < 0) {
+                opacity = 0;
+            } else if (opacity > 1) {
+                opacity = 1;
+            }
+            opacity = Math.floor(opacity * 255.0); // Quantize
+            var lastOpacity = (this.meshes[0]._colorize[3] / 255.0);
+            if (lastOpacity === opacity) {
+                return;
+            }
+        } else {
+            opacity = 255.0;
         }
-        opacity = Math.floor(opacity * 255.0); // Quantize
-        var lastOpacity = (this.meshes[0]._colorize[3] / 255.0);
-        if (lastOpacity === opacity) {
-            return;
-        }
-        for (var i = 0, len = this.meshes.length; i < len; i++) {
+        for (let i = 0, len = this.meshes.length; i < len; i++) {
             this.meshes[i]._setOpacity(opacity);
+        }
+        if (this._isObject) {
+            this.scene._objectOpacityUpdated(this, opacityUpdated);
         }
         this.model.glRedraw();
     }
@@ -25531,6 +27508,53 @@ class PerformanceNode {
         } else {
             return 1.0;
         }
+    }
+
+    /**
+     * Sets the PerformanceNode's 3D World-space offset.
+     *
+     * The offset dynamically translates the PerformanceNode in World-space.
+     *
+     * Default value is ````[0, 0, 0]````.
+     *
+     * Provide a null or undefined value to reset to the default value.
+     *
+     * @type {Number[]}
+     */
+    set offset(offset) {
+        if (offset) {
+            this._offset[0] = offset[0];
+            this._offset[1] = offset[1];
+            this._offset[2] = offset[2];
+        } else {
+            this._offset[0] = 0;
+            this._offset[1] = 0;
+            this._offset[2] = 0;
+        }
+        for (let i = 0, len = this.meshes.length; i < len; i++) {
+            this.meshes[i]._setOffset(this._offset);
+        }
+        this._offsetAABB[0] = this._aabb[0] + this._offset[0];
+        this._offsetAABB[1] = this._aabb[1] + this._offset[1];
+        this._offsetAABB[2] = this._aabb[2] + this._offset[2];
+        this._offsetAABB[3] = this._aabb[3] + this._offset[0];
+        this._offsetAABB[4] = this._aabb[4] + this._offset[1];
+        this._offsetAABB[5] = this._aabb[5] + this._offset[2];
+        this.scene._aabbDirty = true;
+        this.scene._objectOffsetUpdated(this, offset);
+        this.model._aabbDirty = true;
+        this.model.glRedraw();
+    }
+
+    /**
+     * Gets the PerformanceNode's 3D World-space offset.
+     *
+     * Default value is ````[0,0,0]````.
+     *
+     * @type {Number[]}
+     */
+    get offset() {
+        return this._offset;
     }
 
     /**
@@ -25618,10 +27642,9 @@ class PerformanceNode {
             if (this.highlighted) {
                 scene._objectHighlightedUpdated(this);
             }
-            if (this._isObject) {
-                const colorized = false;
-                this.scene._objectColorizeUpdated(this, colorized);
-            }
+            this.scene._objectColorizeUpdated(this, false);
+            this.scene._objectOpacityUpdated(this, false);
+            this.scene._objectOffsetUpdated(this, false);
         }
         for (var i = 0, len = this.meshes.length; i < len; i++) {
             this.meshes[i]._destroy();
@@ -25629,52 +27652,6 @@ class PerformanceNode {
         scene._aabbDirty = true;
     }
 
-}
-
-const bigIndicesSupported$1 = WEBGL_INFO.SUPPORTED_EXTENSIONS["OES_element_index_uint"];
-const SLICING = true;
-const MAX_VERTS =  (bigIndicesSupported$1 ? 5000000 : 65530) ;
-
-/**
- * @private
- */
-class BatchingBuffer {
-    constructor() {
-        this.slicing = SLICING;
-        this.maxVerts = MAX_VERTS;
-        this.positions = new Float32Array(MAX_VERTS * 3); // Uncompressed
-        this.colors = new Uint8Array(MAX_VERTS * 4); // Compressed
-        this.quantizedPositions = new Uint16Array(MAX_VERTS * 3); // Compressed
-        this.normals = new Int8Array(MAX_VERTS * 3); // Compressed
-        this.pickColors = new Uint8Array(MAX_VERTS * 4); // Compressed
-        this.flags = new Uint8Array(MAX_VERTS * 4);
-        this.flags2 = new Uint8Array(MAX_VERTS * 4);
-        this.indices = bigIndicesSupported$1 ? new Uint32Array(MAX_VERTS) : new Uint16Array(MAX_VERTS);
-        this.edgeIndices = bigIndicesSupported$1 ? new Uint32Array(MAX_VERTS) : new Uint16Array(MAX_VERTS);
-        this.lenPositions = 0;
-        this.lenColors = 0;
-        this.lenNormals = 0;
-        this.lenPickColors = 0;
-        this.lenFlags = 0;
-        this.lenIndices = 0;
-        this.lenEdgeIndices = 0;
-    }
-}
-
-const freeBuffers = [];
-
-/**
- * @private
- */
-function getBatchingBuffer() {
-    return freeBuffers.length > 0 ? freeBuffers.pop() : new BatchingBuffer();
-}
-
-/**
- * @private
- */
-function putBatchingBuffer(buffer) {
-    freeBuffers.push(buffer);
 }
 
 /**
@@ -25687,10 +27664,12 @@ class BatchingLayerScratchMemory {
 
     constructor() {
         this._uint8Arrays = {};
+        this._float32Arrays = {};
     }
 
     _clear() {
         this._uint8Arrays = {};
+        this._float32Arrays = {};
     }
 
     getUInt8Array(len) {
@@ -25700,6 +27679,15 @@ class BatchingLayerScratchMemory {
             this._uint8Arrays[len] = uint8Array;
         }
         return uint8Array;
+    }
+
+    getFloat32Array(len) {
+        let float32Array = this._float32Arrays[len];
+        if (!float32Array) {
+            float32Array = new Float32Array(len);
+            this._float32Arrays[len] = float32Array;
+        }
+        return float32Array;
     }
 }
 
@@ -25756,10 +27744,8 @@ function buildVertex(scene) {
     src.push("attribute vec3 normal;");
     src.push("attribute vec4 color;");
     src.push("attribute vec4 flags;");
-
-    if (clipping) {
-        src.push("attribute vec4 flags2;");
-    }
+    src.push("attribute vec4 flags2;");
+    src.push("attribute vec3 offset;");
 
     src.push("uniform mat4 viewMatrix;");
     src.push("uniform mat4 projMatrix;");
@@ -25802,16 +27788,16 @@ function buildVertex(scene) {
 
     src.push("void main(void) {");
 
-
     src.push("bool visible      = (float(flags.x) > 0.0);");
     src.push("bool xrayed       = (float(flags.y) > 0.0);");
     src.push("bool highlighted  = (float(flags.z) > 0.0);");
     src.push("bool selected     = (float(flags.w) > 0.0);");
+    src.push("bool culled       = (float(flags2.w) > 0.0);");
 
     src.push("bool transparent  = ((float(color.a) / 255.0) < 1.0);");
 
     src.push(`if (
-    !visible ||  
+    culled || !visible || 
     (renderPass == ${RENDER_PASSES.NORMAL_OPAQUE} && (transparent || xrayed)) || 
     (renderPass == ${RENDER_PASSES.NORMAL_TRANSPARENT} && (!transparent || xrayed || highlighted || selected)) || 
     (renderPass == ${RENDER_PASSES.XRAYED} && (!xrayed || highlighted || selected)) || 
@@ -25822,7 +27808,8 @@ function buildVertex(scene) {
 
     src.push("} else {");
 
-    src.push("vec4 worldPosition = (positionsDecodeMatrix * vec4(position, 1.0)); ");
+    src.push("vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); ");
+    src.push("worldPosition.xyz = worldPosition.xyz + offset;");
     src.push("vec4 viewPosition  = viewMatrix * worldPosition; ");
 
     src.push("vec4 worldNormal =  vec4(octDecode(normal.xy), 0.0); ");
@@ -25864,7 +27851,8 @@ function buildVertex(scene) {
         src.push("reflectedColor += lambertian * (lightColor" + i + ".rgb * lightColor" + i + ".a);");
     }
 
-    src.push("vColor =  vec4(reflectedColor * ((lightAmbient.rgb * lightAmbient.a) + vec3(float(color.r) / 255.0, float(color.g) / 255.0, float(color.b) / 255.0)), float(color.a) / 255.0);");
+    src.push("vec3 rgb = (vec3(float(color.r) / 255.0, float(color.g) / 255.0, float(color.b) / 255.0));");
+    src.push("vColor =  vec4((lightAmbient.rgb * lightAmbient.a * rgb) + (reflectedColor * rgb), float(color.a) / 255.0);");
 
     if (clipping) {
         src.push("vWorldPosition = worldPosition;");
@@ -25998,6 +27986,9 @@ class BatchingDrawRenderer {
         if (this._aFlags2) {
             this._aFlags2.bindArrayBuffer(state.flags2Buf);
         }
+        if (this._aOffset) {
+            this._aOffset.bindArrayBuffer(state.offsetsBuf);
+        }
         state.indicesBuf.bind();
         gl.drawElements(state.primitive, state.indicesBuf.numItems, state.indicesBuf.itemType, 0);
     }
@@ -26061,6 +28052,7 @@ class BatchingDrawRenderer {
             });
         }
         this._aPosition = program.getAttribute("position");
+        this._aOffset = program.getAttribute("offset");
         this._aNormal = program.getAttribute("normal");
         this._aColor = program.getAttribute("color");
         this._aFlags = program.getAttribute("flags");
@@ -26181,6 +28173,7 @@ function buildVertex$1(scene) {
     src.push("uniform int renderPass;");
 
     src.push("attribute vec3 position;");
+    src.push("attribute vec3 offset;");
     src.push("attribute vec4 flags;");
     src.push("attribute vec4 flags2;");
     src.push("uniform mat4 viewMatrix;");
@@ -26192,6 +28185,7 @@ function buildVertex$1(scene) {
         src.push("varying vec4 vWorldPosition;");
         src.push("varying vec4 vFlags2;");
     }
+
     src.push("void main(void) {");
 
     src.push("bool visible      = (float(flags.x) > 0.0);");
@@ -26199,11 +28193,12 @@ function buildVertex$1(scene) {
     src.push("bool highlighted  = (float(flags.z) > 0.0);");
     src.push("bool selected     = (float(flags.w) > 0.0);");
     src.push("bool clippable    = (float(flags2.x) > 0.0);");
+    src.push("bool culled       = (float(flags2.w) > 0.0);");
 
     src.push("bool transparent  = (color.a < 1.0);"); // Color comes from EmphasisMaterial.fillColor, so is not quantized
 
     src.push(`if (
-    !visible || 
+    culled || !visible ||
     (renderPass == ${RENDER_PASSES.NORMAL_OPAQUE} && (transparent || xrayed)) || 
     (renderPass == ${RENDER_PASSES.NORMAL_TRANSPARENT} && (!transparent || xrayed || highlighted || selected)) || 
     (renderPass == ${RENDER_PASSES.XRAYED} && (!xrayed || highlighted || selected)) || 
@@ -26213,7 +28208,8 @@ function buildVertex$1(scene) {
     src.push("   gl_Position = vec4(0.0, 0.0, 0.0, 0.0);"); // Cull vertex
     src.push("} else {");
 
-    src.push("vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); ");
+    src.push("      vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); ");
+    src.push("      worldPosition.xyz = worldPosition.xyz + offset;");
     src.push("vec4 viewPosition  = viewMatrix * worldPosition; ");
     if (clipping) {
         src.push("vWorldPosition = worldPosition;");
@@ -26310,6 +28306,7 @@ class BatchingFillRenderer {
         gl.uniform1i(this._uRenderPass, renderPass);
         gl.uniformMatrix4fv(this._uModelMatrix, gl.FALSE, model.worldMatrix);
         this._aPosition.bindArrayBuffer(state.positionsBuf);
+        this._aOffset.bindArrayBuffer(state.offsetsBuf);
         if (this._aFlags) {
             this._aFlags.bindArrayBuffer(state.flagsBuf);
         }
@@ -26364,6 +28361,7 @@ class BatchingFillRenderer {
             });
         }
         this._aPosition = program.getAttribute("position");
+        this._aOffset = program.getAttribute("offset");
         this._aFlags = program.getAttribute("flags");
         this._aFlags2 = program.getAttribute("flags2");
     }
@@ -26441,6 +28439,7 @@ function buildVertex$2(scene) {
     src.push("uniform int renderPass;");
 
     src.push("attribute vec3 position;");
+    src.push("attribute vec3 offset;");
     src.push("attribute vec4 flags;");
     src.push("attribute vec4 flags2;");
 
@@ -26452,6 +28451,7 @@ function buildVertex$2(scene) {
         src.push("varying vec4 vWorldPosition;");
         src.push("varying vec4 vFlags2;");
     }
+
     src.push("uniform vec4 color;");
 
     src.push("void main(void) {");
@@ -26467,13 +28467,14 @@ function buildVertex$2(scene) {
     src.push("bool highlighted  = (float(flags.z) > 0.0);");
     src.push("bool selected     = (float(flags.w) > 0.0);");
     src.push("bool edges        = (float(flags2.y) > 0.0);");
+    src.push("bool culled       = (float(flags2.w) > 0.0);");
 
     src.push("bool transparent  = (color.a < 1.0);"); // Color comes from EdgeMaterial.edgeColor, so is not quantized
 
     src.push(`if (
-    !visible || !edges ||
-    (renderPass == ${RENDER_PASSES.NORMAL_OPAQUE} && (transparent || xrayed)) ||
-    (renderPass == ${RENDER_PASSES.NORMAL_TRANSPARENT} &&  (!transparent || xrayed || highlighted || selected)) ||
+    culled || !visible ||
+    (renderPass == ${RENDER_PASSES.NORMAL_OPAQUE} && (!edges || transparent || xrayed)) ||
+    (renderPass == ${RENDER_PASSES.NORMAL_TRANSPARENT} &&  (!edges || !transparent || xrayed || highlighted || selected)) ||
     (renderPass == ${RENDER_PASSES.XRAYED} && (!xrayed || highlighted || selected)) ||
     (renderPass == ${RENDER_PASSES.HIGHLIGHTED} && !highlighted) ||
     (renderPass == ${RENDER_PASSES.SELECTED} && !selected)) {`);
@@ -26482,7 +28483,8 @@ function buildVertex$2(scene) {
 
     src.push("} else {");
 
-    src.push("  vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); ");
+    src.push("      vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); ");
+    src.push("      worldPosition.xyz = worldPosition.xyz + offset;");
     src.push("  vec4 viewPosition  = viewMatrix * worldPosition; ");
 
     if (clipping) {
@@ -26596,6 +28598,7 @@ class BatchingEdgesRenderer {
         gl.uniformMatrix4fv(this._uViewMatrix, false, model.viewMatrix);
         gl.uniform1i(this._uRenderPass, renderPass);
         this._aPosition.bindArrayBuffer(state.positionsBuf);
+        this._aOffset.bindArrayBuffer(state.offsetsBuf);
         if (this._aFlags) {
             this._aFlags.bindArrayBuffer(state.flagsBuf);
         }
@@ -26631,6 +28634,7 @@ class BatchingEdgesRenderer {
             });
         }
         this._aPosition = program.getAttribute("position");
+        this._aOffset = program.getAttribute("offset");
         this._aFlags = program.getAttribute("flags");
         this._aFlags2 = program.getAttribute("flags2");
     }
@@ -26698,6 +28702,7 @@ function buildVertex$3(scene) {
     src.push("// Batched geometry picking vertex shader");
 
     src.push("attribute vec3 position;");
+    src.push("attribute vec3 offset;");
     src.push("attribute vec4 flags;");
     src.push("attribute vec4 flags2;");
 
@@ -26718,10 +28723,12 @@ function buildVertex$3(scene) {
     src.push("void main(void) {");
     src.push("  bool visible   = (float(flags.x) > 0.0);");
     src.push("  bool pickable  = (float(flags2.z) > 0.0);");
-    src.push("  if ((!pickInvisible && !visible) || !pickable) {");
+    src.push("  bool culled    = (float(flags2.w) > 0.0);");
+    src.push("  if (culled || (!pickInvisible && !visible) ||  !pickable) {");
     src.push("      gl_Position = vec4(0.0, 0.0, 0.0, 0.0);"); // Cull vertex
     src.push("  } else {");
-    src.push("      vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); "); // Batched positions are baked in World-space
+    src.push("      vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); ");
+    src.push("      worldPosition.xyz = worldPosition.xyz + offset;");
     src.push("      vec4 viewPosition  = viewMatrix * worldPosition; ");
     src.push("      vPickColor = vec4(float(pickColor.r) / 255.0, float(pickColor.g) / 255.0, float(pickColor.b) / 255.0, float(pickColor.a) / 255.0);");
     if (clipping) {
@@ -26811,6 +28818,7 @@ class BatchingPickMeshRenderer {
         gl.uniformMatrix4fv(this._uPositionsDecodeMatrix, false, layer._state.positionsDecodeMatrix);
         gl.uniformMatrix4fv(this._uViewMatrix, false, frameCtx.pickViewMatrix ? model.getPickViewMatrix(frameCtx.pickViewMatrix) : model.viewMatrix);
         this._aPosition.bindArrayBuffer(state.positionsBuf);
+        this._aOffset.bindArrayBuffer(state.offsetsBuf);
         if (this._aFlags) {
             this._aFlags.bindArrayBuffer(state.flagsBuf);
         }
@@ -26848,6 +28856,7 @@ class BatchingPickMeshRenderer {
             });
         }
         this._aPosition = program.getAttribute("position");
+        this._aOffset = program.getAttribute("offset");
         this._aPickColor = program.getAttribute("pickColor");
         this._aFlags = program.getAttribute("flags");
         this._aFlags2 = program.getAttribute("flags2");
@@ -26917,6 +28926,7 @@ function buildVertex$4(scene) {
     src.push("// Batched geometry depth vertex shader");
 
     src.push("attribute vec3 position;");
+    src.push("attribute vec3 offset;");
     src.push("attribute vec4 flags;");
     src.push("attribute vec4 flags2;");
 
@@ -26933,10 +28943,12 @@ function buildVertex$4(scene) {
     src.push("void main(void) {");
     src.push("  bool visible   = (float(flags.x) > 0.0);");
     src.push("  bool pickable  = (float(flags2.z) > 0.0);");
-    src.push("  if ((!pickInvisible && !visible) || !pickable) {");
+    src.push("  bool culled    = (float(flags2.w) > 0.0);");
+    src.push("  if (culled || (!pickInvisible && !visible) || !pickable) {");
     src.push("      gl_Position = vec4(0.0, 0.0, 0.0, 0.0);"); // Cull vertex
     src.push("  } else {");
-    src.push("      vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); "); // Batched positions are baked in World-space
+    src.push("      vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); ");
+    src.push("      worldPosition.xyz = worldPosition.xyz + offset;");
     src.push("      vec4 viewPosition  = viewMatrix * worldPosition; ");
     if (clipping) {
         src.push("      vWorldPosition = worldPosition;");
@@ -27041,6 +29053,7 @@ class BatchingPickDepthRenderer {
         gl.uniform1f(this._uZFar, projectState.far);
         gl.uniformMatrix4fv(this._uPositionsDecodeMatrix, false, layer._state.positionsDecodeMatrix);
         this._aPosition.bindArrayBuffer(state.positionsBuf);
+        this._aOffset.bindArrayBuffer(state.offsetsBuf);
         if (this._aFlags) {
             this._aFlags.bindArrayBuffer(state.flagsBuf);
         }
@@ -27080,6 +29093,7 @@ class BatchingPickDepthRenderer {
             });
         }
         this._aPosition = program.getAttribute("position");
+        this._aOffset = program.getAttribute("offset");
         this._aFlags = program.getAttribute("flags");
         this._aFlags2 = program.getAttribute("flags2");
         this._uZNear = program.getLocation("zNear");
@@ -27146,6 +29160,7 @@ function buildVertex$5(scene) {
     const src = [];
     src.push("// Batched geometry normals vertex shader");
     src.push("attribute vec3 position;");
+    src.push("attribute vec3 offset;");
     src.push("attribute vec3 normal;");
     src.push("attribute vec4 flags;");
     src.push("attribute vec4 flags2;");
@@ -27168,10 +29183,12 @@ function buildVertex$5(scene) {
     src.push("void main(void) {");
     src.push("  bool visible   = (float(flags.x) > 0.0);");
     src.push("  bool pickable  = (float(flags2.z) > 0.0);");
-    src.push("  if ((!pickInvisible && !visible) || !pickable) {");
+    src.push("  bool culled    = (float(flags2.w) > 0.0);");
+    src.push("  if (culled || (!pickInvisible && !visible) ||  !pickable) {");
     src.push("      gl_Position = vec4(0.0, 0.0, 0.0, 0.0);"); // Cull vertex
     src.push("  } else {");
-    src.push("      vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); "); // Batched positions are baked in World-space
+    src.push("      vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); ");
+    src.push("      worldPosition.xyz = worldPosition.xyz + offset;");
     src.push("      vec4 viewPosition  = viewMatrix * worldPosition; ");
     src.push("      vec3 worldNormal =  octDecode(normal.xy); ");
     src.push("      vWorldNormal = worldNormal;");
@@ -27266,6 +29283,7 @@ class BatchingPickNormalsRenderer {
         gl.uniformMatrix4fv(this._uProjMatrix, false, frameCtx.pickProjMatrix);
         gl.uniformMatrix4fv(this._uPositionsDecodeMatrix, false, layer._state.positionsDecodeMatrix);
         this._aPosition.bindArrayBuffer(state.positionsBuf);
+        this._aOffset.bindArrayBuffer(state.offsetsBuf);
         if (this._aNormal) {
             this._aNormal.bindArrayBuffer(state.normalsBuf);
         }
@@ -27308,6 +29326,7 @@ class BatchingPickNormalsRenderer {
             });
         }
         this._aPosition = program.getAttribute("position");
+        this._aOffset = program.getAttribute("offset");
         this._aNormal = program.getAttribute("normal");
         this._aFlags = program.getAttribute("flags");
         this._aFlags2 = program.getAttribute("flags2");
@@ -27373,11 +29392,10 @@ function buildVertex$6(scene) {
     const src = [];
     src.push("// Batched occlusion vertex shader");
     src.push("attribute vec3 position;");
+    src.push("attribute vec3 offset;");
     src.push("attribute vec4 color;");
     src.push("attribute vec4 flags;");
-    if (clipping) {
-        src.push("attribute vec4 flags2;");
-    }
+    src.push("attribute vec4 flags2;");
     src.push("uniform mat4 viewMatrix;");
     src.push("uniform mat4 projMatrix;");
     src.push("uniform mat4 positionsDecodeMatrix;");
@@ -27387,11 +29405,13 @@ function buildVertex$6(scene) {
     }
     src.push("void main(void) {");
     src.push("  bool visible   = (float(flags.x) > 0.0);");
+    src.push("  bool culled   = (float(flags2.w) > 0.0);");
     src.push("  bool transparent  = ((float(color.a) / 255.0) < 1.0);");
-    src.push("  if (!visible || transparent) {");
+    src.push("  if (culled || !visible || transparent) {");
     src.push("      gl_Position = vec4(0.0, 0.0, 0.0, 0.0);"); // Cull vertex
     src.push("  } else {");
-    src.push("      vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); "); // Batched positions are baked in World-space
+    src.push("      vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); ");
+    src.push("      worldPosition.xyz = worldPosition.xyz + offset;");
     src.push("      vec4 viewPosition  = viewMatrix * worldPosition; ");
     if (clipping) {
         src.push("      vWorldPosition = worldPosition;");
@@ -27481,6 +29501,7 @@ class BatchingOcclusionRenderer {
         gl.uniformMatrix4fv(this._uProjMatrix, false, camera._project._state.matrix);
         gl.uniformMatrix4fv(this._uPositionsDecodeMatrix, false, layer._state.positionsDecodeMatrix);
         this._aPosition.bindArrayBuffer(state.positionsBuf);
+        this._aOffset.bindArrayBuffer(state.offsetsBuf);
         if (this._aColor) {
             this._aColor.bindArrayBuffer(state.colorsBuf);
         }
@@ -27515,6 +29536,7 @@ class BatchingOcclusionRenderer {
             });
         }
         this._aPosition = program.getAttribute("position");
+        this._aOffset = program.getAttribute("offset");
         this._aColor = program.getAttribute("color");
         this._aFlags = program.getAttribute("flags");
         this._aFlags2 = program.getAttribute("flags2");
@@ -27579,11 +29601,10 @@ function buildVertex$7(scene) {
     const src = [];
     src.push("// Batched geometry depth vertex shader");
     src.push("attribute vec3 position;");
+    src.push("attribute vec3 offset;");
     src.push("attribute vec4 color;");
     src.push("attribute vec4 flags;");
-    if (clipping) {
-        src.push("attribute vec4 flags2;");
-    }
+    src.push("attribute vec4 flags2;");
     src.push("uniform mat4 viewMatrix;");
     src.push("uniform mat4 projMatrix;");
     src.push("uniform mat4 positionsDecodeMatrix;");
@@ -27596,10 +29617,12 @@ function buildVertex$7(scene) {
     src.push("  bool visible        = (float(flags.x) > 0.0);");
     src.push("  bool xrayed         = (float(flags.y) > 0.0);");
     src.push("  bool transparent    = ((float(color.a) / 255.0) < 1.0);");
-    src.push(`  if (!visible || transparent || xrayed) {`);
+    src.push("  bool culled         = (float(flags2.w) > 0.0);");
+    src.push(`  if (culled || !visible || transparent || xrayed) {`);
     src.push("      gl_Position = vec4(0.0, 0.0, 0.0, 0.0);");
     src.push("  } else {");
     src.push("      vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); ");
+    src.push("      worldPosition.xyz = worldPosition.xyz + offset;");
     src.push("      vec4 viewPosition  = viewMatrix * worldPosition; ");
     if (clipping) {
         src.push("      vWorldPosition = worldPosition;");
@@ -27697,6 +29720,7 @@ class BatchingDepthRenderer {
         gl.uniformMatrix4fv(this._uPositionsDecodeMatrix, false, layer._state.positionsDecodeMatrix);
         gl.uniformMatrix4fv(this._uViewMatrix, false, model.viewMatrix);
         this._aPosition.bindArrayBuffer(state.positionsBuf);
+        this._aOffset.bindArrayBuffer(state.offsetsBuf);
         if (this._aColor) { // Needed for masking out transparent entities using alpha channel
             this._aColor.bindArrayBuffer(state.colorsBuf);
         }
@@ -27734,6 +29758,7 @@ class BatchingDepthRenderer {
             });
         }
         this._aPosition = program.getAttribute("position");
+        this._aOffset = program.getAttribute("offset");
         this._aColor = program.getAttribute("color");
         this._aFlags = program.getAttribute("flags");
         this._aFlags2 = program.getAttribute("flags2");
@@ -27801,12 +29826,11 @@ function buildVertex$8(scene) {
     const src = [];
     src.push("// Batched geometry normals vertex shader");
     src.push("attribute vec3 position;");
+    src.push("attribute vec3 offset;");
     src.push("attribute vec3 normal;");
     src.push("attribute vec4 color;");
     src.push("attribute vec4 flags;");
-    if (clipping) {
-        src.push("attribute vec4 flags2;");
-    }
+    src.push("attribute vec4 flags2;");
     src.push("uniform mat4 viewMatrix;");
     src.push("uniform mat4 projMatrix;");
     src.push("uniform mat4 viewNormalMatrix;");
@@ -27827,10 +29851,12 @@ function buildVertex$8(scene) {
     src.push("  bool visible        = (float(flags.x) > 0.0);");
     src.push("  bool xrayed         = (float(flags.y) > 0.0);");
     src.push("  bool transparent    = ((float(color.a) / 255.0) < 1.0);");
-    src.push(`  if (!visible || transparent || xrayed) {`);
+    src.push("  bool culled         = (float(flags2.w) > 0.0);");
+    src.push(`  if (culled || !visible || transparent || xrayed) {`);
     src.push("      gl_Position = vec4(0.0, 0.0, 0.0, 0.0);");
     src.push("  } else {");
-    src.push("      vec4 worldPosition  = positionsDecodeMatrix * vec4(position, 1.0); ");
+    src.push("      vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); ");
+    src.push("      worldPosition.xyz = worldPosition.xyz + offset;");
     src.push("      vec4 viewPosition   = viewMatrix * worldPosition; ");
     src.push("      vec4 worldNormal    = vec4(octDecode(normal.xy), 0.0); ");
     src.push("      vec3 viewNormal     = normalize((viewNormalMatrix * worldNormal).xyz);");
@@ -27926,6 +29952,7 @@ class BatchingNormalsRenderer {
         gl.uniformMatrix4fv(this._uViewMatrix, false, model.viewMatrix);
         gl.uniformMatrix4fv(this._uViewNormalMatrix, false, model.viewNormalMatrix);
         this._aPosition.bindArrayBuffer(state.positionsBuf);
+        this._aOffset.bindArrayBuffer(state.offsetsBuf);
         this._aNormal.bindArrayBuffer(state.normalsBuf);
         this._aColor.bindArrayBuffer(state.colorsBuf);// Needed for masking out transparent entities using alpha channel
         this._aFlags.bindArrayBuffer(state.flagsBuf);
@@ -27961,6 +29988,7 @@ class BatchingNormalsRenderer {
             });
         }
         this._aPosition = program.getAttribute("position");
+        this._aOffset = program.getAttribute("offset");
         this._aNormal = program.getAttribute("normal");
         this._aColor = program.getAttribute("color");
         this._aFlags = program.getAttribute("flags");
@@ -28104,16 +30132,36 @@ class BatchingRenderers {
     }
 
     _destroy() {
-        this.drawRenderer.destroy();
-        this.drawRendererWithSAO.destroy();
-        this.depthRenderer.destroy();
-        this.normalsRenderer.destroy();
-        this.fillRenderer.destroy();
-        this.edgesRenderer.destroy();
-        this.pickMeshRenderer.destroy();
-        this.pickDepthRenderer.destroy();
-        this.pickNormalsRenderer.destroy();
-        this.occlusionRenderer.destroy();
+        if (this.drawRenderer) {
+            this.drawRenderer.destroy();
+        }
+        if (this.drawRendererWithSAO) {
+            this.drawRendererWithSAO.destroy();
+        }
+        if (this.depthRenderer) {
+            this.depthRenderer.destroy();
+        }
+        if (this.normalsRenderer) {
+            this.normalsRenderer.destroy();
+        }
+        if (this.fillRenderer) {
+            this.fillRenderer.destroy();
+        }
+        if (this.edgesRenderer) {
+            this.edgesRenderer.destroy();
+        }
+        if (this.pickMeshRenderer) {
+            this.pickMeshRenderer.destroy();
+        }
+        if (this.pickDepthRenderer) {
+            this.pickDepthRenderer.destroy();
+        }
+        if (this.pickNormalsRenderer) {
+            this.pickNormalsRenderer.destroy();
+        }
+        if (this.occlusionRenderer) {
+            this.occlusionRenderer.destroy();
+        }
     }
 }
 
@@ -28137,11 +30185,34 @@ function getBatchingRenderers(scene) {
     return batchingRenderers;
 }
 
+const bigIndicesSupported$1 = WEBGL_INFO.SUPPORTED_EXTENSIONS["OES_element_index_uint"];
+const MAX_VERTS = bigIndicesSupported$1 ? 5000000 : 65530;
+const MAX_INDICES = MAX_VERTS * 3; // Rough rule-of-thumb
+
+/**
+ * @private
+ */
+class BatchingBuffer {
+    constructor() {
+        this.maxVerts = MAX_VERTS;
+        this.maxIndices = MAX_INDICES;
+        this.positions = [];
+        this.colors = [];
+        this.normals = [];
+        this.pickColors = [];
+        this.flags = [];
+        this.flags2 = [];
+        this.offsets = [];
+        this.indices = [];
+        this.edgeIndices = [];
+    }
+}
+
 const tempMat4 = math.mat4();
 const tempMat4b = math.mat4();
-const tempVec3a = math.vec4([0, 0, 0, 1]);
-const tempVec3b$1 = math.vec4([0, 0, 0, 1]);
-const tempVec3c$1 = math.vec4([0, 0, 0, 1]);
+const tempVec4a = math.vec4([0, 0, 0, 1]);
+const tempVec4b = math.vec4([0, 0, 0, 1]);
+const tempVec4c = math.vec4([0, 0, 0, 1]);
 const tempOBB3 = math.OBB3();
 
 /**
@@ -28152,9 +30223,6 @@ class BatchingLayer {
     /**
      * @param model
      * @param cfg
-     * @param cfg.positionsDecodeMatrix
-     * @param cfg.positionsCompression - "precompressed" \ "disabled" | "auto".
-     * @param cfg.normalsCompression - "precompressed" | "auto".
      * @param cfg.buffer
      * @param cfg.scratchMemory
      * @param cfg.primitive
@@ -28162,7 +30230,7 @@ class BatchingLayer {
     constructor(model, cfg) {
         this._batchingRenderers = getBatchingRenderers(model.scene);
         this.model = model;
-        this._buffer = cfg.buffer;
+        this._buffer = new BatchingBuffer();
         this._scratchMemory = cfg.scratchMemory;
         var primitiveName = cfg.primitive || "triangles";
         var primitive;
@@ -28199,13 +30267,14 @@ class BatchingLayer {
             primitiveName: primitiveName,
             primitive: primitive,
             positionsBuf: null,
+            offsetsBuf: null,
             normalsBuf: null,
-            colorsbuf: null,
+            colorsBuf: null,
             flagsBuf: null,
             flags2Buf: null,
             indicesBuf: null,
             edgeIndicesBuf: null,
-            positionsDecodeMatrix: math.identityMat4()
+            positionsDecodeMatrix: math.mat4()
         });
 
         // These counts are used to avoid unnecessary render passes
@@ -28217,40 +30286,28 @@ class BatchingLayer {
         this._numHighlightedLayerPortions = 0;
         this._numEdgesLayerPortions = 0;
         this._numPickableLayerPortions = 0;
-
-        //this.pickObjectBaseIndex = cfg.pickObjectBaseIndex;
+        this._numCulledLayerPortions = 0;
 
         this._modelAABB = math.collapseAABB3(); // Model-space AABB
         this._portions = [];
 
         this._finalized = false;
-        this._positionsDecodeMatrix = (cfg.positionsDecodeMatrix || math.identityMat4());
-
-        this._positionsCompression = cfg.positionsCompression;
-        this._normalsCompression = cfg.normalsCompression;
-
-        if (this._positionsCompression !== "precompressed" && this._positionsCompression !== "disabled" && this._positionsCompression !== "auto") {
-            model.error("Unsupported value for 'positionsCompression' - supported values are 'precompressed', 'disabled' and 'auto' - defaulting to 'auto'");
-            this._positionsCompression = "auto";
-        }
-
-        if (this._normalsCompression !== "precompressed" && this._normalsCompression !== "auto") {
-            model.error("Unsupported value for 'normalsCompression' - supported values are 'precompressed' and 'auto' - defaulting to 'auto'");
-            this._normalsCompression = "auto";
-        }
+        this._positionsDecodeMatrix = cfg.positionsDecodeMatrix;
+        this._preCompressed = (!!this._positionsDecodeMatrix);
     }
 
     /**
      * Tests if there is room for another portion in this BatchingLayer.
      *
      * @param lenPositions Number of positions we'd like to create in the portion.
-     * @returns {boolean} True if OK to creatye another portion.
+     * @param lenIndices Number of indices we'd like to create in this portion.
+     * @returns {boolean} True if OK to create another portion.
      */
-    canCreatePortion(lenPositions) {
+    canCreatePortion(lenPositions, lenIndices) {
         if (this._finalized) {
             throw "Already finalized";
         }
-        return (!this._finalized && this._buffer.lenPositions + lenPositions) < (this._buffer.maxVerts * 3);
+        return ((this._buffer.positions.length + lenPositions) < (this._buffer.maxVerts * 3) && (this._buffer.indices.length + lenIndices) < (this._buffer.maxIndices));
     }
 
     /**
@@ -28279,15 +30336,16 @@ class BatchingLayer {
         }
 
         const buffer = this._buffer;
-        const positionsIndex = buffer.lenPositions;
+        const positionsIndex = buffer.positions.length;
         const vertsIndex = positionsIndex / 3;
         const numVerts = positions.length / 3;
         const lenPositions = positions.length;
 
-        if (this._positionsCompression === "precompressed") {
+        if (this._preCompressed) {
 
-            buffer.positions.set(positions, buffer.lenPositions);
-            buffer.lenPositions += lenPositions;
+            for (let i = 0, len = positions.length; i < len; i++) {
+                buffer.positions.push(positions[i]);
+            }
 
             const bounds = geometryCompressionUtils.getPositionsBounds(positions);
 
@@ -28307,66 +30365,69 @@ class BatchingLayer {
                 math.OBB3ToAABB3(tempOBB3, worldAABB);
             }
 
-        } else { // "disabled" or "auto"
+        } else {
 
-            buffer.positions.set(positions, buffer.lenPositions);
+            const positionsBase = buffer.positions.length;
+
+            for (let i = 0, len = positions.length; i < len; i++) {
+                buffer.positions.push(positions[i]);
+            }
 
             if (meshMatrix) {
 
-                for (let i = buffer.lenPositions, len = buffer.lenPositions + lenPositions; i < len; i += 3) {
+                for (let i = positionsBase, len = positionsBase + lenPositions; i < len; i += 3) {
 
-                    tempVec3a[0] = buffer.positions[i + 0];
-                    tempVec3a[1] = buffer.positions[i + 1];
-                    tempVec3a[2] = buffer.positions[i + 2];
+                    tempVec4a[0] = buffer.positions[i + 0];
+                    tempVec4a[1] = buffer.positions[i + 1];
+                    tempVec4a[2] = buffer.positions[i + 2];
 
-                    math.transformPoint4(meshMatrix, tempVec3a, tempVec3b$1);
+                    math.transformPoint4(meshMatrix, tempVec4a, tempVec4b);
 
-                    buffer.positions[i + 0] = tempVec3b$1[0];
-                    buffer.positions[i + 1] = tempVec3b$1[1];
-                    buffer.positions[i + 2] = tempVec3b$1[2];
+                    buffer.positions[i + 0] = tempVec4b[0];
+                    buffer.positions[i + 1] = tempVec4b[1];
+                    buffer.positions[i + 2] = tempVec4b[2];
 
-                    math.expandAABB3Point3(this._modelAABB, tempVec3b$1);
+                    math.expandAABB3Point3(this._modelAABB, tempVec4b);
 
                     if (worldMatrix) {
-                        math.transformPoint4(worldMatrix, tempVec3b$1, tempVec3c$1);
-                        math.expandAABB3Point3(worldAABB, tempVec3c$1);
+                        math.transformPoint4(worldMatrix, tempVec4b, tempVec4c);
+                        math.expandAABB3Point3(worldAABB, tempVec4c);
                     } else {
-                        math.expandAABB3Point3(worldAABB, tempVec3b$1);
+                        math.expandAABB3Point3(worldAABB, tempVec4b);
                     }
                 }
 
             } else {
 
-                for (let i = buffer.lenPositions, len = buffer.lenPositions + lenPositions; i < len; i += 3) {
+                for (let i = positionsBase, len = positionsBase + lenPositions; i < len; i += 3) {
 
-                    tempVec3a[0] = buffer.positions[i + 0];
-                    tempVec3a[1] = buffer.positions[i + 1];
-                    tempVec3a[2] = buffer.positions[i + 2];
+                    tempVec4a[0] = buffer.positions[i + 0];
+                    tempVec4a[1] = buffer.positions[i + 1];
+                    tempVec4a[2] = buffer.positions[i + 2];
 
-                    math.expandAABB3Point3(this._modelAABB, tempVec3a);
+                    math.expandAABB3Point3(this._modelAABB, tempVec4a);
 
                     if (worldMatrix) {
-                        math.transformPoint4(worldMatrix, tempVec3a, tempVec3b$1);
-                        math.expandAABB3Point3(worldAABB, tempVec3b$1);
+                        math.transformPoint4(worldMatrix, tempVec4a, tempVec4b);
+                        math.expandAABB3Point3(worldAABB, tempVec4b);
                     } else {
-                        math.expandAABB3Point3(worldAABB, tempVec3a);
+                        math.expandAABB3Point3(worldAABB, tempVec4a);
                     }
                 }
             }
-
-            buffer.lenPositions += lenPositions;
         }
 
         if (normals) {
 
-            if (this._normalsCompression === "precompressed") {
+            if (this._preCompressed) {
 
-                buffer.normals.set(normals, buffer.lenNormals);
-                buffer.lenNormals += normals.length;
+                for (let i = 0, len = normals.length; i < len; i++) {
+                    buffer.normals.push(normals[i]);
+                }
 
             } else {
 
-                var modelNormalMatrix = tempMat4;
+                const modelNormalMatrix = tempMat4;
 
                 if (meshMatrix) {
                     math.inverseMat4(math.transposeMat4(meshMatrix, tempMat4b), modelNormalMatrix); // Note: order of inverse and transpose doesn't matter
@@ -28375,13 +30436,12 @@ class BatchingLayer {
                     math.identityMat4(modelNormalMatrix, modelNormalMatrix);
                 }
 
-                buffer.lenNormals = transformAndOctEncodeNormals(modelNormalMatrix, normals, normals.length, buffer.normals, buffer.lenNormals);
+                transformAndOctEncodeNormals(modelNormalMatrix, normals, normals.length, buffer.normals, buffer.normals.length);
             }
         }
 
         if (flags !== undefined) {
 
-            const lenFlags = (numVerts * 4);
             const visible = !!(flags & RENDER_FLAGS.VISIBLE) ? 255 : 0;
             const xrayed = !!(flags & RENDER_FLAGS.XRAYED) ? 255 : 0;
             const highlighted = !!(flags & RENDER_FLAGS.HIGHLIGHTED) ? 255 : 0;
@@ -28389,17 +30449,18 @@ class BatchingLayer {
             const clippable = !!(flags & RENDER_FLAGS.CLIPPABLE) ? 255 : 0;
             const edges = !!(flags & RENDER_FLAGS.EDGES) ? 255 : 0;
             const pickable = !!(flags & RENDER_FLAGS.PICKABLE) ? 255 : 0;
+            const culled = !!(flags & RENDER_FLAGS.CULLED) ? 255 : 0;
 
-            for (var i = buffer.lenFlags, len = buffer.lenFlags + lenFlags; i < len; i += 4) {
-                buffer.flags[i + 0] = visible;
-                buffer.flags[i + 1] = xrayed;
-                buffer.flags[i + 2] = highlighted;
-                buffer.flags[i + 3] = selected;
-                buffer.flags2[i + 0] = clippable;
-                buffer.flags2[i + 1] = edges;
-                buffer.flags2[i + 2] = pickable;
+            for (let i = 0; i < numVerts; i++) {
+                buffer.flags.push(visible);
+                buffer.flags.push(xrayed);
+                buffer.flags.push(highlighted);
+                buffer.flags.push(selected);
+                buffer.flags2.push(clippable);
+                buffer.flags2.push(edges);
+                buffer.flags2.push(pickable);
+                buffer.flags2.push(culled);
             }
-            buffer.lenFlags += lenFlags;
             if (visible) {
                 this._numVisibleLayerPortions++;
                 this.model.numVisibleLayerPortions++;
@@ -28424,9 +30485,13 @@ class BatchingLayer {
                 this._numPickableLayerPortions++;
                 this.model.numPickableLayerPortions++;
             }
+            if (culled) {
+                this._numCulledLayerPortions++;
+                this.model.numCulledLayerPortions++;
+            }
         }
+
         if (color) {
-            const lenColors = (numVerts * 4);
 
             const r = color[0]; // Color is pre-quantized by PerformanceModel
             const g = color[1];
@@ -28434,42 +30499,46 @@ class BatchingLayer {
 
             const a = opacity;
 
-            for (var i = buffer.lenColors, len = buffer.lenColors + lenColors; i < len; i += 4) {
-                buffer.colors[i + 0] = r;
-                buffer.colors[i + 1] = g;
-                buffer.colors[i + 2] = b;
-                buffer.colors[i + 3] = opacity;
+            for (let i = 0; i < numVerts; i++) {
+                buffer.colors.push(r);
+                buffer.colors.push(g);
+                buffer.colors.push(b);
+                buffer.colors.push(opacity);
             }
-            buffer.lenColors += lenColors;
             if (a < 255) {
                 this._numTransparentLayerPortions++;
                 this.model.numTransparentLayerPortions++;
             }
         }
         if (indices) {
-            for (var i = 0, len = indices.length; i < len; i++) {
-                buffer.indices[buffer.lenIndices + i] = indices[i] + vertsIndex;
+            for (let i = 0, len = indices.length; i < len; i++) {
+                buffer.indices.push(indices[i] + vertsIndex);
             }
-            buffer.lenIndices += indices.length;
         }
         if (edgeIndices) {
-            for (var i = 0, len = edgeIndices.length; i < len; i++) {
-                buffer.edgeIndices[buffer.lenEdgeIndices + i] = edgeIndices[i] + vertsIndex;
+            for (let i = 0, len = edgeIndices.length; i < len; i++) {
+                buffer.edgeIndices.push(edgeIndices[i] + vertsIndex);
             }
-            buffer.lenEdgeIndices += edgeIndices.length;
         }
         {
+            const pickColorsBase = buffer.pickColors.length;
             const lenPickColors = numVerts * 4;
-            for (var i = buffer.lenPickColors, len = buffer.lenPickColors + lenPickColors; i < len; i += 4) {
-                buffer.pickColors[i + 0] = pickColor[0];
-                buffer.pickColors[i + 1] = pickColor[1];
-                buffer.pickColors[i + 2] = pickColor[2];
-                buffer.pickColors[i + 3] = pickColor[3];
+            for (let i = pickColorsBase, len = pickColorsBase + lenPickColors; i < len; i += 4) {
+                buffer.pickColors.push(pickColor[0]);
+                buffer.pickColors.push(pickColor[1]);
+                buffer.pickColors.push(pickColor[2]);
+                buffer.pickColors.push(pickColor[3]);
             }
-            buffer.lenPickColors += lenPickColors;
         }
 
-        var portionId = this._portions.length / 2;
+        for (let i = 0; i < numVerts; i++) {
+            buffer.offsets.push(0);
+            buffer.offsets.push(0);
+            buffer.offsets.push(0);
+        }
+
+        const portionId = this._portions.length / 2;
+
         this._portions.push(vertsIndex);
         this._portions.push(numVerts);
 
@@ -28485,7 +30554,7 @@ class BatchingLayer {
      */
     finalize() {
         if (this._finalized) {
-            this.error("Already finalized");
+            this.model.error("Already finalized");
             return;
         }
 
@@ -28493,58 +30562,61 @@ class BatchingLayer {
         const gl = this.model.scene.canvas.gl;
         const buffer = this._buffer;
 
-        if (this._positionsCompression === "disabled") {
-
-            if (buffer.lenPositions > 0) {
-                state.positionsBuf = new ArrayBuf(gl, gl.ARRAY_BUFFER, buffer.positions.slice(0, buffer.lenPositions), buffer.lenPositions, 3, gl.STATIC_DRAW);
-            }
-
-        } else if (this._positionsCompression === "precompressed") {
-
-            state.positionsDecodeMatrix = this._positionsDecodeMatrix;
-            state.positionsBuf = new ArrayBuf(gl, gl.ARRAY_BUFFER, buffer.positions.slice(0, buffer.lenPositions), buffer.lenPositions, 3, gl.STATIC_DRAW);
-
-        } else { // this._positionsCompression === "auto"
-
-            quantizePositions(buffer.positions, buffer.lenPositions, this._modelAABB, buffer.quantizedPositions, state.positionsDecodeMatrix); // BOTTLENECK
-
-            if (buffer.lenPositions > 0) {
-                state.positionsBuf = new ArrayBuf(gl, gl.ARRAY_BUFFER, buffer.quantizedPositions.slice(0, buffer.lenPositions), buffer.lenPositions, 3, gl.STATIC_DRAW);
+        if (buffer.positions.length > 0) {
+            if (this._preCompressed) {
+                state.positionsDecodeMatrix = this._positionsDecodeMatrix;
+                const positions = new Uint16Array(buffer.positions);
+                state.positionsBuf = new ArrayBuf(gl, gl.ARRAY_BUFFER, positions, buffer.positions.length, 3, gl.STATIC_DRAW);
+            } else {
+                const positions = new Float32Array(buffer.positions);
+                const quantizedPositions = new Uint16Array(positions.length);
+                quantizePositions(positions, buffer.positions.length, this._modelAABB, quantizedPositions, state.positionsDecodeMatrix); // BOTTLENECK
+                state.positionsBuf = new ArrayBuf(gl, gl.ARRAY_BUFFER, quantizedPositions, buffer.positions.length, 3, gl.STATIC_DRAW);
             }
         }
 
-        if (buffer.lenNormals > 0) {
+        if (buffer.normals.length > 0) {
+            const normals = new Int8Array(buffer.normals);
             let normalized = true; // For oct encoded UInts
             //let normalized = false; // For scaled
-            state.normalsBuf = new ArrayBuf(gl, gl.ARRAY_BUFFER, buffer.normals.slice(0, buffer.lenNormals), buffer.lenNormals, 3, gl.STATIC_DRAW, normalized);
-        }
-        if (buffer.lenColors > 0) {
-            let normalized = false;
-            state.colorsBuf = new ArrayBuf(gl, gl.ARRAY_BUFFER, buffer.colors.slice(0, buffer.Colors), buffer.lenColors, 4, gl.DYNAMIC_DRAW, normalized);
-        }
-        if (buffer.lenFlags > 0) {
-            let normalized = true;
-            state.flagsBuf = new ArrayBuf(gl, gl.ARRAY_BUFFER, buffer.flags.slice(0, buffer.lenFlags), buffer.lenFlags, 4, gl.DYNAMIC_DRAW, normalized);
-            state.flags2Buf = new ArrayBuf(gl, gl.ARRAY_BUFFER, buffer.flags2.slice(0, buffer.lenFlags), buffer.lenFlags, 4, gl.DYNAMIC_DRAW, normalized);
-        }
-        if (buffer.lenPickColors > 0) {
-            let normalized = false;
-            state.pickColorsBuf = new ArrayBuf(gl, gl.ARRAY_BUFFER, buffer.pickColors.slice(0, buffer.lenPickColors), buffer.lenPickColors, 4, gl.STATIC_DRAW, normalized);
-        }
-        if (buffer.lenIndices > 0) {
-            state.indicesBuf = new ArrayBuf(gl, gl.ELEMENT_ARRAY_BUFFER, buffer.indices.slice(0, buffer.lenIndices), buffer.lenIndices, 1, gl.STATIC_DRAW);
-        }
-        if (buffer.lenEdgeIndices > 0) {
-            state.edgeIndicesBuf = new ArrayBuf(gl, gl.ELEMENT_ARRAY_BUFFER, buffer.edgeIndices.slice(0, buffer.lenEdgeIndices), buffer.lenEdgeIndices, 1, gl.STATIC_DRAW);
+            state.normalsBuf = new ArrayBuf(gl, gl.ARRAY_BUFFER, normals, buffer.normals.length, 3, gl.STATIC_DRAW, normalized);
         }
 
-        buffer.lenPositions = 0;
-        buffer.lenColors = 0;
-        buffer.lenNormals = 0;
-        buffer.lenFlags = 0;
-        buffer.lenPickColors = 0;
-        buffer.lenIndices = 0;
-        buffer.lenEdgeIndices = 0;
+        if (buffer.colors.length > 0) {
+            const colors = new Uint8Array(buffer.colors);
+            let normalized = false;
+            state.colorsBuf = new ArrayBuf(gl, gl.ARRAY_BUFFER, colors, buffer.colors.length, 4, gl.DYNAMIC_DRAW, normalized);
+        }
+
+        if (buffer.flags.length > 0) {
+            const flags = new Uint8Array(buffer.flags);
+            const flags2 = new Uint8Array(buffer.flags2);
+            let normalized = true;
+            state.flagsBuf = new ArrayBuf(gl, gl.ARRAY_BUFFER, flags, buffer.flags.length, 4, gl.DYNAMIC_DRAW, normalized);
+            state.flags2Buf = new ArrayBuf(gl, gl.ARRAY_BUFFER, flags2, buffer.flags.length, 4, gl.DYNAMIC_DRAW, normalized);
+        }
+
+        if (buffer.pickColors.length > 0) {
+            const pickColors = new Uint8Array(buffer.pickColors);
+            let normalized = false;
+            state.pickColorsBuf = new ArrayBuf(gl, gl.ARRAY_BUFFER, pickColors, buffer.pickColors.length, 4, gl.STATIC_DRAW, normalized);
+        }
+
+        if (buffer.offsets.length > 0) {
+            const offsets = new Float32Array(buffer.offsets);
+            state.offsetsBuf = new ArrayBuf(gl, gl.ARRAY_BUFFER, offsets, buffer.offsets.length, 3, gl.DYNAMIC_DRAW);
+        }
+
+        const bigIndicesSupported = WEBGL_INFO.SUPPORTED_EXTENSIONS["OES_element_index_uint"];
+
+        if (buffer.indices.length > 0) {
+            const indices = bigIndicesSupported ? new Uint32Array(buffer.indices) : new Uint16Array(buffer.indices);
+            state.indicesBuf = new ArrayBuf(gl, gl.ELEMENT_ARRAY_BUFFER, indices, buffer.indices.length, 1, gl.STATIC_DRAW);
+        }
+        if (buffer.edgeIndices.length > 0) {
+            const edgeIndices = bigIndicesSupported ? new Uint32Array(buffer.edgeIndices) : new Uint16Array(buffer.edgeIndices);
+            state.edgeIndicesBuf = new ArrayBuf(gl, gl.ELEMENT_ARRAY_BUFFER, edgeIndices, buffer.edgeIndices.length, 1, gl.STATIC_DRAW);
+        }
 
         this._buffer = null;
         this._finalized = true;
@@ -28577,6 +30649,10 @@ class BatchingLayer {
         if (flags & RENDER_FLAGS.PICKABLE) {
             this._numPickableLayerPortions++;
             this.model.numPickableLayerPortions++;
+        }
+        if (flags & RENDER_FLAGS.CULLED) {
+            this._numCulledLayerPortions++;
+            this.model.numCulledLayerPortions++;
         }
         this._setFlags(portionId, flags);
         this._setFlags2(portionId, flags);
@@ -28659,6 +30735,20 @@ class BatchingLayer {
         this._setFlags2(portionId, flags);
     }
 
+    setCulled(portionId, flags) {
+        if (!this._finalized) {
+            throw "Not finalized";
+        }
+        if (flags & RENDER_FLAGS.CULLED) {
+            this._numCulledLayerPortions++;
+            this.model.numCulledLayerPortions++;
+        } else {
+            this._numCulledLayerPortions--;
+            this.model.numCulledLayerPortions--;
+        }
+        this._setFlags2(portionId, flags);
+    }
+
     setCollidable(portionId, flags) {
         if (!this._finalized) {
             throw "Not finalized";
@@ -28683,12 +30773,12 @@ class BatchingLayer {
         if (!this._finalized) {
             throw "Not finalized";
         }
-        var portionsIdx = portionId * 2;
-        var vertexBase = this._portions[portionsIdx];
-        var numVerts = this._portions[portionsIdx + 1];
-        var firstColor = vertexBase * 4;
-        var lenColor = numVerts * 4;
-        const tempArray = this._scratchMemory.getUInt8Array(numVerts);
+        const portionsIdx = portionId * 2;
+        const vertexBase = this._portions[portionsIdx];
+        const numVerts = this._portions[portionsIdx + 1];
+        const firstColor = vertexBase * 4;
+        const lenColor = numVerts * 4;
+        const tempArray = this._scratchMemory.getUInt8Array(lenColor);
         const r = color[0];
         const g = color[1];
         const b = color[2];
@@ -28747,19 +30837,42 @@ class BatchingLayer {
         var clippable = !!(flags & RENDER_FLAGS.CLIPPABLE) ? 255 : 0;
         var edges = !!(flags & RENDER_FLAGS.EDGES) ? 255 : 0;
         var pickable = !!(flags & RENDER_FLAGS.PICKABLE) ? 255 : 0;
+        var culled = !!(flags & RENDER_FLAGS.CULLED) ? 255 : 0;
         const tempArray = this._scratchMemory.getUInt8Array(lenFlags);
         for (var i = 0; i < lenFlags; i += 4) {
             tempArray[i + 0] = clippable;
             tempArray[i + 1] = edges;
             tempArray[i + 2] = pickable;
+            tempArray[i + 3] = culled;
         }
         this._state.flags2Buf.setData(tempArray, firstFlag, lenFlags);
+    }
+
+    setOffset(portionId, offset) {
+        if (!this._finalized) {
+            throw "Not finalized";
+        }
+        const portionsIdx = portionId * 2;
+        const vertexBase = this._portions[portionsIdx];
+        const numVerts = this._portions[portionsIdx + 1];
+        const firstOffset = vertexBase * 3;
+        const lenOffsets = numVerts * 3;
+        const tempArray = this._scratchMemory.getFloat32Array(lenOffsets);
+        const x = offset[0];
+        const y = offset[1];
+        const z = offset[2];
+        for (let i = 0; i < lenOffsets; i += 3) {
+            tempArray[i + 0] = x;
+            tempArray[i + 1] = y;
+            tempArray[i + 2] = z;
+        }
+        this._state.offsetsBuf.setData(tempArray, firstOffset, lenOffsets);
     }
 
     //-- NORMAL --------------------------------------------------------------------------------------------------------
 
     drawNormalFillOpaque(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numTransparentLayerPortions === this._numPortions || this._numXRayedLayerPortions === this._numPortions) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numTransparentLayerPortions === this._numPortions || this._numXRayedLayerPortions === this._numPortions) {
             return;
         }
         if (frameCtx.withSAO) {
@@ -28774,7 +30887,7 @@ class BatchingLayer {
     }
 
     drawNormalEdgesOpaque(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numEdgesLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numEdgesLayerPortions === 0) {
             return;
         }
         if (this._batchingRenderers.edgesRenderer) {
@@ -28783,7 +30896,7 @@ class BatchingLayer {
     }
 
     drawNormalFillTransparent(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numTransparentLayerPortions === 0 || this._numXRayedLayerPortions === this._numPortions) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numTransparentLayerPortions === 0 || this._numXRayedLayerPortions === this._numPortions) {
             return;
         }
         if (this._batchingRenderers.drawRenderer) {
@@ -28792,7 +30905,7 @@ class BatchingLayer {
     }
 
     drawNormalTransparentEdges(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numEdgesLayerPortions === 0 || this._numTransparentLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numEdgesLayerPortions === 0 || this._numTransparentLayerPortions === 0) {
             return;
         }
         if (this._batchingRenderers.edgesRenderer) {
@@ -28800,10 +30913,10 @@ class BatchingLayer {
         }
     }
 
-    //-- SPost effects supprt------------------------------------------------------------------------------------------------
+    //-- Post effects support------------------------------------------------------------------------------------------------
 
     drawDepth(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numTransparentLayerPortions === this._numPortions || this._numXRayedLayerPortions === this._numPortions) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numTransparentLayerPortions === this._numPortions || this._numXRayedLayerPortions === this._numPortions) {
             return;
         }
         if (this._batchingRenderers.depthRenderer) {
@@ -28812,7 +30925,7 @@ class BatchingLayer {
     }
 
     drawNormals(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numTransparentLayerPortions === this._numPortions || this._numXRayedLayerPortions === this._numPortions) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numTransparentLayerPortions === this._numPortions || this._numXRayedLayerPortions === this._numPortions) {
             return;
         }
         if (this._batchingRenderers.normalsRenderer) {
@@ -28823,7 +30936,7 @@ class BatchingLayer {
     //-- XRAYED--------------------------------------------------------------------------------------------------------
 
     drawXRayedFillOpaque(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numXRayedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numXRayedLayerPortions === 0) {
             return;
         }
         if (this._batchingRenderers.fillRenderer) {
@@ -28832,7 +30945,7 @@ class BatchingLayer {
     }
 
     drawXRayedEdgesOpaque(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numXRayedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numXRayedLayerPortions === 0) {
             return;
         }
         if (this._batchingRenderers.edgesRenderer) {
@@ -28841,7 +30954,7 @@ class BatchingLayer {
     }
 
     drawXRayedFillTransparent(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numXRayedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numXRayedLayerPortions === 0) {
             return;
         }
         if (this._batchingRenderers.fillRenderer) {
@@ -28850,7 +30963,7 @@ class BatchingLayer {
     }
 
     drawXRayedEdgesTransparent(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numXRayedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numXRayedLayerPortions === 0) {
             return;
         }
         if (this._batchingRenderers.edgesRenderer) {
@@ -28861,7 +30974,7 @@ class BatchingLayer {
     //-- HIGHLIGHTED ---------------------------------------------------------------------------------------------------
 
     drawHighlightedFillOpaque(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numHighlightedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numHighlightedLayerPortions === 0) {
             return;
         }
         if (this._batchingRenderers.fillRenderer) {
@@ -28870,7 +30983,7 @@ class BatchingLayer {
     }
 
     drawHighlightedEdgesOpaque(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numHighlightedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numHighlightedLayerPortions === 0) {
             return;
         }
         if (this._batchingRenderers.edgesRenderer) {
@@ -28879,7 +30992,7 @@ class BatchingLayer {
     }
 
     drawHighlightedFillTransparent(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numHighlightedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numHighlightedLayerPortions === 0) {
             return;
         }
         if (this._batchingRenderers.fillRenderer) {
@@ -28888,7 +31001,7 @@ class BatchingLayer {
     }
 
     drawHighlightedEdgesTransparent(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numHighlightedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numHighlightedLayerPortions === 0) {
             return;
         }
         if (this._batchingRenderers.edgesRenderer) {
@@ -28899,7 +31012,7 @@ class BatchingLayer {
     //-- SELECTED ------------------------------------------------------------------------------------------------------
 
     drawSelectedFillOpaque(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numSelectedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numSelectedLayerPortions === 0) {
             return;
         }
         if (this._batchingRenderers.fillRenderer) {
@@ -28908,7 +31021,7 @@ class BatchingLayer {
     }
 
     drawSelectedEdgesOpaque(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numSelectedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numSelectedLayerPortions === 0) {
             return;
         }
         if (this._batchingRenderers.edgesRenderer) {
@@ -28917,7 +31030,7 @@ class BatchingLayer {
     }
 
     drawSelectedFillTransparent(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numSelectedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numSelectedLayerPortions === 0) {
             return;
         }
         if (this._batchingRenderers.fillRenderer) {
@@ -28926,7 +31039,7 @@ class BatchingLayer {
     }
 
     drawSelectedEdgesTransparent(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numSelectedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numSelectedLayerPortions === 0) {
             return;
         }
         if (this._batchingRenderers.edgesRenderer) {
@@ -28937,7 +31050,7 @@ class BatchingLayer {
     //---- PICKING ----------------------------------------------------------------------------------------------------
 
     drawPickMesh(frameCtx) {
-        if (this._numVisibleLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0) {
             return;
         }
         if (this._batchingRenderers.pickMeshRenderer) {
@@ -28946,7 +31059,7 @@ class BatchingLayer {
     }
 
     drawPickDepths(frameCtx) {
-        if (this._numVisibleLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0) {
             return;
         }
         if (this._batchingRenderers.pickDepthRenderer) {
@@ -28955,7 +31068,7 @@ class BatchingLayer {
     }
 
     drawPickNormals(frameCtx) {
-        if (this._numVisibleLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0) {
             return;
         }
         if (this._batchingRenderers.pickNormalsRenderer) {
@@ -28966,7 +31079,7 @@ class BatchingLayer {
     //---- OCCLUSION TESTING -------------------------------------------------------------------------------------------
 
     drawOcclusion(frameCtx) {
-        if (this._numVisibleLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0) {
             return;
         }
         if (this._batchingRenderers.occlusionRenderer) {
@@ -28979,6 +31092,10 @@ class BatchingLayer {
         if (state.positionsBuf) {
             state.positionsBuf.destroy();
             state.positionsBuf = null;
+        }
+        if (state.offsetsBuf) {
+            state.offsetsBuf.destroy();
+            state.offsetsBuf = null;
         }
         if (state.normalsBuf) {
             state.normalsBuf.destroy();
@@ -29146,25 +31263,15 @@ function buildVertex$9(scene) {
 
     src.push("// Instancing geometry drawing vertex shader");
 
-    src.push("#ifdef GL_FRAGMENT_PRECISION_HIGH");
-    src.push("precision highp float;");
-    src.push("precision highp int;");
-    src.push("#else");
-    src.push("precision mediump float;");
-    src.push("precision mediump int;");
-    src.push("#endif");
-
     src.push("uniform int renderPass;");
 
     src.push("attribute vec3 position;");
     src.push("attribute vec2 normal;");
     src.push("attribute vec4 color;");
     src.push("attribute vec4 flags;");
+    src.push("attribute vec4 flags2;");
 
-    if (clipping) {
-        src.push("attribute vec4 flags2;");
-    }
-
+    src.push("attribute vec3 offset;");
 
     src.push("attribute vec4 modelMatrixCol0;"); // Modeling matrix
     src.push("attribute vec4 modelMatrixCol1;");
@@ -29219,11 +31326,11 @@ function buildVertex$9(scene) {
     src.push("bool xrayed       = (float(flags.y) > 0.0);");
     src.push("bool highlighted  = (float(flags.z) > 0.0);");
     src.push("bool selected     = (float(flags.w) > 0.0);");
-
+    src.push("bool culled       = (float(flags2.w) > 0.0);");
     src.push("bool transparent  = ((float(color.a) / 255.0) < 1.0);");
 
     src.push(`if 
-    (!visible || 
+    (culled || !visible || 
     (renderPass == ${RENDER_PASSES.NORMAL_OPAQUE} && (transparent || xrayed)) || 
     (renderPass == ${RENDER_PASSES.NORMAL_TRANSPARENT} && (!transparent || xrayed || highlighted || selected)) || 
     (renderPass == ${RENDER_PASSES.XRAYED} && (!xrayed || highlighted || selected)) || 
@@ -29234,8 +31341,8 @@ function buildVertex$9(scene) {
     src.push("} else {");
 
     src.push("vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); ");
-
     src.push("worldPosition = vec4(dot(worldPosition, modelMatrixCol0), dot(worldPosition, modelMatrixCol1), dot(worldPosition, modelMatrixCol2), 1.0);");
+    src.push("worldPosition.xyz = worldPosition.xyz + offset;");
 
     src.push("vec4 viewPosition  = viewMatrix * worldPosition; ");
 
@@ -29277,7 +31384,8 @@ function buildVertex$9(scene) {
         src.push("reflectedColor += lambertian * (lightColor" + i + ".rgb * lightColor" + i + ".a);");
     }
 
-    src.push("vColor = vec4(reflectedColor * ((lightAmbient.rgb * lightAmbient.a) + vec3(float(color.r) / 255.0, float(color.g) / 255.0, float(color.b) / 255.0)), float(color.a) / 255.0);");
+    src.push("vec3 rgb = (vec3(float(color.r) / 255.0, float(color.g) / 255.0, float(color.b) / 255.0));");
+    src.push("vColor =  vec4((lightAmbient.rgb * lightAmbient.a * rgb) + (reflectedColor * rgb), float(color.a) / 255.0);");
 
     if (clipping) {
         src.push("vWorldPosition = worldPosition;");
@@ -29428,7 +31536,6 @@ class InstancingDrawRenderer {
         instanceExt.vertexAttribDivisorANGLE(this._aModelNormalMatrixCol2.location, 1);
 
         this._aPosition.bindArrayBuffer(state.positionsBuf);
-
         this._aNormal.bindArrayBuffer(state.normalsBuf);
 
         this._aColor.bindArrayBuffer(state.colorsBuf);
@@ -29441,6 +31548,10 @@ class InstancingDrawRenderer {
             this._aFlags2.bindArrayBuffer(state.flags2Buf);
             instanceExt.vertexAttribDivisorANGLE(this._aFlags2.location, 1);
         }
+
+        this._aOffset.bindArrayBuffer(state.offsetsBuf);
+        instanceExt.vertexAttribDivisorANGLE(this._aOffset.location, 1);
+
         state.indicesBuf.bind();
 
         instanceExt.drawElementsInstancedANGLE(state.primitive, state.indicesBuf.numItems, state.indicesBuf.itemType, 0, state.numInstances);
@@ -29456,6 +31567,7 @@ class InstancingDrawRenderer {
         if (this._aFlags2) { // Won't be in shader when not clipping
             instanceExt.vertexAttribDivisorANGLE(this._aFlags2.location, 0);
         }
+          instanceExt.vertexAttribDivisorANGLE(this._aOffset.location, 0);
     }
 
     _allocate() {
@@ -29531,6 +31643,7 @@ class InstancingDrawRenderer {
         this._aColor = program.getAttribute("color");
         this._aFlags = program.getAttribute("flags");
         this._aFlags2 = program.getAttribute("flags2");
+        this._aOffset = program.getAttribute("offset");
 
         this._aModelMatrixCol0 = program.getAttribute("modelMatrixCol0");
         this._aModelMatrixCol1 = program.getAttribute("modelMatrixCol1");
@@ -29654,10 +31767,9 @@ function buildVertex$a(scene) {
     src.push("uniform int renderPass;");
 
     src.push("attribute vec3 position;");
+    src.push("attribute vec3 offset;");
     src.push("attribute vec4 flags;");
-    if (clipping) {
-        src.push("attribute vec4 flags2;");
-    }
+    src.push("attribute vec4 flags2;");
 
     src.push("attribute vec4 modelMatrixCol0;"); // Modeling matrix
     src.push("attribute vec4 modelMatrixCol1;");
@@ -29680,11 +31792,12 @@ function buildVertex$a(scene) {
     src.push("bool xrayed       = (float(flags.y) > 0.0);");
     src.push("bool highlighted  = (float(flags.z) > 0.0);");
     src.push("bool selected     = (float(flags.w) > 0.0);");
+    src.push("bool culled       = (float(flags2.w) > 0.0);");
 
     src.push("bool transparent  = (color.a < 1.0);"); // Color comes from EmphasisMaterial.fillColor, so is not quantized
 
-    src.push(`if
-    (!visible ||
+    src.push(`if (
+    culled || !visible ||
     (renderPass == ${RENDER_PASSES.NORMAL_OPAQUE} && (transparent || xrayed)) || 
     (renderPass == ${RENDER_PASSES.NORMAL_TRANSPARENT} && (!transparent || xrayed || highlighted || selected)) || 
     (renderPass == ${RENDER_PASSES.XRAYED} && (!xrayed || highlighted || selected)) || 
@@ -29696,6 +31809,7 @@ function buildVertex$a(scene) {
 
     src.push("vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); ");
     src.push("worldPosition = vec4(dot(worldPosition, modelMatrixCol0), dot(worldPosition, modelMatrixCol1), dot(worldPosition, modelMatrixCol2), 1.0);");
+    src.push("worldPosition.xyz = worldPosition.xyz + offset;");
     src.push("vec4 viewPosition  = viewMatrix * worldPosition; ");
 
     if (clipping) {
@@ -29804,6 +31918,7 @@ class InstancingFillRenderer {
         instanceExt.vertexAttribDivisorANGLE(this._aModelMatrixCol2.location, 1);
 
         this._aPosition.bindArrayBuffer(state.positionsBuf);
+        this._aOffset.bindArrayBuffer(state.offsetsBuf);
 
         this._aFlags.bindArrayBuffer(state.flagsBuf, gl.UNSIGNED_BYTE, true);
         instanceExt.vertexAttribDivisorANGLE(this._aFlags.location, 1);
@@ -29847,6 +31962,7 @@ class InstancingFillRenderer {
         if (this._aFlags2) {
             instanceExt.vertexAttribDivisorANGLE(this._aFlags2.location, 0);
         }
+        instanceExt.vertexAttribDivisorANGLE(this._aOffset.location, 0);
     }
 
     _allocate() {
@@ -29876,6 +31992,7 @@ class InstancingFillRenderer {
             });
         }
         this._aPosition = program.getAttribute("position");
+        this._aOffset = program.getAttribute("offset");
         this._aFlags = program.getAttribute("flags");
         this._aFlags2 = program.getAttribute("flags2");
         this._aModelMatrixCol0 = program.getAttribute("modelMatrixCol0");
@@ -29954,6 +32071,7 @@ function buildVertex$b(scene) {
 
     src.push("uniform int renderPass;");
     src.push("attribute vec3 position;");
+    src.push("attribute vec3 offset;");
     src.push("attribute vec4 flags;");
     src.push("attribute vec4 flags2;");
     src.push("attribute vec4 modelMatrixCol0;"); // Modeling matrix
@@ -29974,13 +32092,14 @@ function buildVertex$b(scene) {
     src.push("bool highlighted  = (float(flags.z) > 0.0);");
     src.push("bool selected     = (float(flags.w) > 0.0);");
     src.push("bool edges        = (float(flags2.y) > 0.0);");
+    src.push("bool culled  = (float(flags2.w) > 0.0);");
 
     src.push("bool transparent  = (color.a < 1.0);"); // Color comes from EdgeMaterial.edgeColor, so is not quantized
 
-    src.push(`
-     if (!visible || !edges ||
-        (renderPass == ${RENDER_PASSES.NORMAL_OPAQUE} && (transparent || xrayed)) ||
-    (renderPass == ${RENDER_PASSES.NORMAL_TRANSPARENT} &&  (!transparent || xrayed || highlighted || selected)) ||
+    src.push(`if (
+    culled || !visible || 
+    (renderPass == ${RENDER_PASSES.NORMAL_OPAQUE} && (!edges || transparent || xrayed)) ||
+    (renderPass == ${RENDER_PASSES.NORMAL_TRANSPARENT} &&  (!edges || !transparent || xrayed || highlighted || selected)) ||
     (renderPass == ${RENDER_PASSES.XRAYED} && (!xrayed || highlighted || selected)) ||
     (renderPass == ${RENDER_PASSES.HIGHLIGHTED} && !highlighted) ||
     (renderPass == ${RENDER_PASSES.SELECTED} && !selected)) {`);
@@ -29989,6 +32108,7 @@ function buildVertex$b(scene) {
     src.push("} else {");
     src.push("vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); ");
     src.push("worldPosition = vec4(dot(worldPosition, modelMatrixCol0), dot(worldPosition, modelMatrixCol1), dot(worldPosition, modelMatrixCol2), 1.0);");
+    src.push("worldPosition.xyz = worldPosition.xyz + offset;");
     src.push("vec4 viewPosition  = viewMatrix * worldPosition; ");
     if (clipping) {
         src.push("vWorldPosition = worldPosition;");
@@ -30128,12 +32248,16 @@ class InstancingEdgesRenderer {
             instanceExt.vertexAttribDivisorANGLE(this._aFlags2.location, 1);
         }
 
+        this._aOffset.bindArrayBuffer(state.offsetsBuf);
+        instanceExt.vertexAttribDivisorANGLE(this._aOffset.location, 1);
+
         state.edgeIndicesBuf.bind();
         instanceExt.drawElementsInstancedANGLE(gl.LINES, state.edgeIndicesBuf.numItems, state.edgeIndicesBuf.itemType, 0, state.numInstances);
 
         instanceExt.vertexAttribDivisorANGLE(this._aModelMatrixCol0.location, 0); // TODO: Is this needed
         instanceExt.vertexAttribDivisorANGLE(this._aModelMatrixCol1.location, 0);
         instanceExt.vertexAttribDivisorANGLE(this._aModelMatrixCol2.location, 0);
+        instanceExt.vertexAttribDivisorANGLE(this._aOffset.location, 0);
 
         if (this._aFlags) {
             instanceExt.vertexAttribDivisorANGLE(this._aFlags.location, 0);
@@ -30170,6 +32294,7 @@ class InstancingEdgesRenderer {
             });
         }
         this._aPosition = program.getAttribute("position");
+        this._aOffset = program.getAttribute("offset");
         this._aFlags = program.getAttribute("flags");
         this._aFlags2 = program.getAttribute("flags2");
         this._aModelMatrixCol0 = program.getAttribute("modelMatrixCol0");
@@ -30240,6 +32365,7 @@ function buildVertex$c(scene) {
     src.push("// Instancing geometry picking vertex shader");
 
     src.push("attribute vec3 position;");
+    src.push("attribute vec3 offset;");
     src.push("attribute vec4 flags;");
     src.push("attribute vec4 flags2;");
     src.push("attribute vec4 pickColor;");
@@ -30261,21 +32387,22 @@ function buildVertex$c(scene) {
     src.push("void main(void) {");
     src.push("bool visible   = (float(flags.x) > 0.0);");
     src.push("bool pickable  = (float(flags2.z) > 0.0);");
-    src.push(`if ((!pickInvisible && !visible) || !pickable) {`);
+    src.push("bool culled    = (float(flags2.w) > 0.0);");
+    src.push(`if ( culled || (!pickInvisible && !visible) || !pickable) {`);
     src.push("   gl_Position = vec4(0.0, 0.0, 0.0, 0.0);"); // Cull vertex
     src.push("} else {");
 
 
     src.push("  vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); ");
-
     src.push("  worldPosition = vec4(dot(worldPosition, modelMatrixCol0), dot(worldPosition, modelMatrixCol1), dot(worldPosition, modelMatrixCol2), 1.0);");
+    src.push("  worldPosition.xyz = worldPosition.xyz + offset;");
 
     src.push("  vec4 viewPosition  = viewMatrix * worldPosition; ");
 
     src.push("  vPickColor = vec4(float(pickColor.r) / 255.0, float(pickColor.g) / 255.0, float(pickColor.b) / 255.0, float(pickColor.a) / 255.0);");
     if (clipping) {
         src.push("  vWorldPosition = worldPosition;");
-        src.push("vFlags2 = flags2;");
+        src.push("  vFlags2 = flags2;");
     }
     src.push("  gl_Position = projMatrix * viewPosition;");
     src.push("}");
@@ -30389,6 +32516,9 @@ class InstancingPickMeshRenderer {
             instanceExt.vertexAttribDivisorANGLE(this._aFlags2.location, 1);
         }
 
+        this._aOffset.bindArrayBuffer(state.offsetsBuf);
+        instanceExt.vertexAttribDivisorANGLE(this._aOffset.location, 1);
+
         state.indicesBuf.bind();
 
         instanceExt.drawElementsInstancedANGLE(state.primitive, state.indicesBuf.numItems, state.indicesBuf.itemType, 0, state.numInstances);
@@ -30403,6 +32533,7 @@ class InstancingPickMeshRenderer {
         if (this._aFlags2) { // Won't be in shader when not clipping
             instanceExt.vertexAttribDivisorANGLE(this._aFlags2.location, 0);
         }
+        instanceExt.vertexAttribDivisorANGLE(this._aOffset.location, 0);
     }
 
     _allocate() {
@@ -30430,6 +32561,7 @@ class InstancingPickMeshRenderer {
             });
         }
         this._aPosition = program.getAttribute("position");
+        this._aOffset = program.getAttribute("offset");
         this._aPickColor = program.getAttribute("pickColor");
         this._aFlags = program.getAttribute("flags");
         this._aFlags2 = program.getAttribute("flags2");
@@ -30501,6 +32633,7 @@ function buildVertex$d(scene) {
     const src = [];
     src.push("// Instancing geometry depth vertex shader");
     src.push("attribute vec3 position;");
+    src.push("attribute vec3 offset;");
     src.push("attribute vec4 flags;");
     src.push("attribute vec4 flags2;");
     src.push("attribute vec4 modelMatrixCol0;"); // Modeling matrix
@@ -30518,14 +32651,17 @@ function buildVertex$d(scene) {
     src.push("void main(void) {");
     src.push("bool visible   = (float(flags.x) > 0.0);");
     src.push("bool pickable  = (float(flags2.z) > 0.0);");
-    src.push("if ((!pickInvisible && !visible) || !pickable) {");
+    src.push("bool culled    = (float(flags2.w) > 0.0);");
+    src.push("if (culled || (!pickInvisible && !visible) || !pickable) {");
     src.push("   gl_Position = vec4(0.0, 0.0, 0.0, 0.0);"); // Cull vertex
     src.push("} else {");
     src.push("  vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); ");
     src.push("  worldPosition = vec4(dot(worldPosition, modelMatrixCol0), dot(worldPosition, modelMatrixCol1), dot(worldPosition, modelMatrixCol2), 1.0);");
+    src.push("  worldPosition.xyz = worldPosition.xyz + offset;");
     src.push("  vec4 viewPosition  = viewMatrix * worldPosition; ");
     if (clipping) {
         src.push("  vWorldPosition = worldPosition;");
+        src.push("  vFlags2 = flags2;");
     }
     src.push("  vViewPosition = viewPosition;");
     src.push("  gl_Position = projMatrix * viewPosition;");
@@ -30656,6 +32792,9 @@ class InstancingPickDepthRenderer {
             instanceExt.vertexAttribDivisorANGLE(this._aFlags2.location, 1);
         }
 
+        this._aOffset.bindArrayBuffer(state.offsetsBuf);
+        instanceExt.vertexAttribDivisorANGLE(this._aOffset.location, 1);
+
         state.indicesBuf.bind();
 
         instanceExt.drawElementsInstancedANGLE(state.primitive, state.indicesBuf.numItems, state.indicesBuf.itemType, 0, state.numInstances);
@@ -30670,6 +32809,7 @@ class InstancingPickDepthRenderer {
         if (this._aFlags2) { // Won't be in shader when not clipping
             instanceExt.vertexAttribDivisorANGLE(this._aFlags2.location, 0);
         }
+        instanceExt.vertexAttribDivisorANGLE(this._aOffset.location, 0);
     }
 
     _allocate() {
@@ -30697,6 +32837,7 @@ class InstancingPickDepthRenderer {
             });
         }
         this._aPosition = program.getAttribute("position");
+        this._aOffset = program.getAttribute("offset");
         this._aFlags = program.getAttribute("flags");
         this._aFlags2 = program.getAttribute("flags2");
         this._aModelMatrixCol0 = program.getAttribute("modelMatrixCol0");
@@ -30764,6 +32905,7 @@ function buildVertex$e(scene) {
     const src = [];
     src.push("// Instancing geometry normals vertex shader");
     src.push("attribute vec3 position;");
+    src.push("attribute vec3 offset;");
     src.push("attribute vec2 normal;");
     src.push("attribute vec4 flags;");
     src.push("attribute vec4 flags2;");
@@ -30792,11 +32934,13 @@ function buildVertex$e(scene) {
     src.push("void main(void) {");
     src.push("bool visible   = (float(flags.x) > 0.0);");
     src.push("bool pickable  = (float(flags2.z) > 0.0);");
-    src.push("  if ((!pickInvisible && !visible) || !pickable) {");
+    src.push("bool culled    = (float(flags2.w) > 0.0);");
+    src.push("  if (culled || (!pickInvisible && !visible) || !pickable) {");
     src.push("   gl_Position = vec4(0.0, 0.0, 0.0, 0.0);"); // Cull vertex
     src.push("} else {");
     src.push("  vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); ");
     src.push("  worldPosition = vec4(dot(worldPosition, modelMatrixCol0), dot(worldPosition, modelMatrixCol1), dot(worldPosition, modelMatrixCol2), 1.0);");
+    src.push("  worldPosition.xyz = worldPosition.xyz + offset;");
     src.push("  vec4 viewPosition  = viewMatrix * worldPosition; ");
     src.push("  vec4 modelNormal = vec4(octDecode(normal.xy), 0.0); ");
     src.push("  vec3 worldNormal = vec3(dot(modelNormal, modelNormalMatrixCol0), dot(modelNormal, modelNormalMatrixCol1), dot(modelNormal, modelNormalMatrixCol2));");
@@ -30919,13 +33063,15 @@ class InstancingPickNormalsRenderer {
         this._aPosition.bindArrayBuffer(state.positionsBuf);
         this._aNormal.bindArrayBuffer(state.normalsBuf);
         this._aFlags.bindArrayBuffer(state.flagsBuf);
-
         instanceExt.vertexAttribDivisorANGLE(this._aFlags.location, 1);
 
         if (this._aFlags2) {
             this._aFlags2.bindArrayBuffer(state.flags2Buf);
             instanceExt.vertexAttribDivisorANGLE(this._aFlags2.location, 1);
         }
+
+        this._aOffset.bindArrayBuffer(state.offsetsBuf);
+        instanceExt.vertexAttribDivisorANGLE(this._aOffset.location, 1);
 
         state.indicesBuf.bind();
 
@@ -30942,6 +33088,7 @@ class InstancingPickNormalsRenderer {
         if (this._aFlags2) { // Won't be in shader when not clipping
             instanceExt.vertexAttribDivisorANGLE(this._aFlags2.location, 0);
         }
+        instanceExt.vertexAttribDivisorANGLE(this._aOffset.location, 0);
     }
 
     _allocate() {
@@ -30977,6 +33124,7 @@ class InstancingPickNormalsRenderer {
         }
 
         this._aPosition = program.getAttribute("position");
+        this._aOffset = program.getAttribute("offset");
         this._aNormal = program.getAttribute("normal");
         this._aFlags = program.getAttribute("flags");
         this._aFlags2 = program.getAttribute("flags2");
@@ -31048,11 +33196,10 @@ function buildVertex$f(scene) {
     const src = [];
     src.push("// Instancing occlusion vertex shader");
     src.push("attribute vec3 position;");
+    src.push("attribute vec3 offset;");
     src.push("attribute vec4 color;");
     src.push("attribute vec4 flags;");
-    if (clipping) {
-        src.push("attribute vec4 flags2;");
-    }
+    src.push("attribute vec4 flags2;");
     src.push("attribute vec4 modelMatrixCol0;"); // Modeling matrix
     src.push("attribute vec4 modelMatrixCol1;");
     src.push("attribute vec4 modelMatrixCol2;");
@@ -31067,11 +33214,13 @@ function buildVertex$f(scene) {
     src.push("void main(void) {");
     src.push("bool visible   = (float(flags.x) > 0.0);");
     src.push("bool transparent  = ((float(color.a) / 255.0) < 1.0);");
-    src.push(`if (!visible || transparent) {`);                // Non-pickable meshes cannot be occluders
+    src.push("bool culled  = (float(flags2.w) > 0.0);");
+    src.push(`if (culled || !visible || transparent) {`);                // Non-pickable meshes cannot be occluders
     src.push("   gl_Position = vec4(0.0, 0.0, 0.0, 0.0);");  // Cull vertex
     src.push("} else {");
     src.push("  vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); ");
     src.push("  worldPosition = vec4(dot(worldPosition, modelMatrixCol0), dot(worldPosition, modelMatrixCol1), dot(worldPosition, modelMatrixCol2), 1.0);");
+    src.push("  worldPosition.xyz = worldPosition.xyz + offset;");
     src.push("  vec4 viewPosition  = viewMatrix * worldPosition; ");
     if (clipping) {
         src.push("  vWorldPosition = worldPosition;");
@@ -31182,6 +33331,9 @@ class InstancingOcclusionRenderer {
 
         this._aPosition.bindArrayBuffer(state.positionsBuf);
 
+        this._aOffset.bindArrayBuffer(state.offsetsBuf);
+        instanceExt.vertexAttribDivisorANGLE(this._aOffset.location, 1);
+
         this._aFlags.bindArrayBuffer(state.flagsBuf);
         instanceExt.vertexAttribDivisorANGLE(this._aFlags.location, 1);
 
@@ -31206,6 +33358,7 @@ class InstancingOcclusionRenderer {
         if (this._aFlags2) { // Won't be in shader when not clipping
             instanceExt.vertexAttribDivisorANGLE(this._aFlags2.location, 0);
         }
+        instanceExt.vertexAttribDivisorANGLE(this._aOffset.location, 0);
     }
 
     _allocate() {
@@ -31232,6 +33385,7 @@ class InstancingOcclusionRenderer {
             });
         }
         this._aPosition = program.getAttribute("position");
+        this._aOffset = program.getAttribute("offset");
         this._aColor = program.getAttribute("color");
         this._aFlags = program.getAttribute("flags");
         this._aFlags2 = program.getAttribute("flags2");
@@ -31301,11 +33455,10 @@ function buildVertex$g(scene) {
     const src = [];
     src.push("// Instancing geometry depth drawing vertex shader");
     src.push("attribute vec3 position;");
+    src.push("attribute vec3 offset;");
     src.push("attribute vec4 color;");
     src.push("attribute vec4 flags;");
-    if (clipping) {
-        src.push("attribute vec4 flags2;");
-    }
+    src.push("attribute vec4 flags2;");
     src.push("attribute vec4 modelMatrixCol0;");
     src.push("attribute vec4 modelMatrixCol1;");
     src.push("attribute vec4 modelMatrixCol2;");
@@ -31321,11 +33474,13 @@ function buildVertex$g(scene) {
     src.push("bool visible      = (float(flags.x) > 0.0);");
     src.push("bool xrayed       = (float(flags.y) > 0.0);");
     src.push("bool transparent  = ((float(color.a) / 255.0) < 1.0);");
-    src.push(`if (!visible || transparent || xrayed) {`);
+    src.push("bool culled  = (float(flags2.w) > 0.0);");
+    src.push(`if ( culled || !visible || transparent || xrayed) {`);
     src.push("   gl_Position = vec4(0.0, 0.0, 0.0, 0.0);"); // Cull vertex
     src.push("} else {");
     src.push("  vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); ");
     src.push("  worldPosition = vec4(dot(worldPosition, modelMatrixCol0), dot(worldPosition, modelMatrixCol1), dot(worldPosition, modelMatrixCol2), 1.0);");
+    src.push("  worldPosition.xyz = worldPosition.xyz + offset;");
     src.push("  vec4 viewPosition  = viewMatrix * worldPosition; ");
 
     if (clipping) {
@@ -31447,6 +33602,10 @@ class InstancingDepthRenderer {
         instanceExt.vertexAttribDivisorANGLE(this._aModelMatrixCol2.location, 1);
 
         this._aPosition.bindArrayBuffer(state.positionsBuf);
+
+        this._aOffset.bindArrayBuffer(state.offsetsBuf);
+        instanceExt.vertexAttribDivisorANGLE(this._aOffset.location, 1);
+
         this._aColor.bindArrayBuffer(state.colorsBuf);
         instanceExt.vertexAttribDivisorANGLE(this._aColor.location, 1);
 
@@ -31471,6 +33630,7 @@ class InstancingDepthRenderer {
         if (this._aFlags2) { // Won't be in shader when not clipping
             instanceExt.vertexAttribDivisorANGLE(this._aFlags2.location, 0);
         }
+        instanceExt.vertexAttribDivisorANGLE(this._aOffset.location, 0);
     }
 
     _allocate() {
@@ -31497,6 +33657,7 @@ class InstancingDepthRenderer {
             });
         }
         this._aPosition = program.getAttribute("position");
+        this._aOffset = program.getAttribute("offset");
         this._aColor = program.getAttribute("color");
         this._aFlags = program.getAttribute("flags");
         this._aFlags2 = program.getAttribute("flags2");
@@ -31566,12 +33727,11 @@ function buildVertex$h(scene) {
     const src = [];
     src.push("// Instancing geometry depth drawing vertex shader");
     src.push("attribute vec3 position;");
+    src.push("attribute vec3 offset;");
     src.push("attribute vec3 normal;");
     src.push("attribute vec4 color;");
     src.push("attribute vec4 flags;");
-    if (clipping) {
-        src.push("attribute vec4 flags2;");
-    }
+    src.push("attribute vec4 flags2;");
     src.push("attribute vec4 modelMatrixCol0;");
     src.push("attribute vec4 modelMatrixCol1;");
     src.push("attribute vec4 modelMatrixCol2;");
@@ -31594,12 +33754,14 @@ function buildVertex$h(scene) {
     src.push("void main(void) {");
     src.push("bool visible      = (float(flags.x) > 0.0);");
     src.push("bool xrayed       = (float(flags.y) > 0.0);");
+    src.push("bool culled       = (float(flags2.w) > 0.0);");
     src.push("bool transparent  = ((float(color.a) / 255.0) < 1.0);");
-    src.push(`if (!visible || transparent || xrayed) {`);
+    src.push(`if (culled || !visible || transparent || xrayed) {`);
     src.push("   gl_Position = vec4(0.0, 0.0, 0.0, 0.0);"); // Cull vertex
     src.push("} else {");
     src.push("  vec4 worldPosition = positionsDecodeMatrix * vec4(position, 1.0); ");
     src.push("  worldPosition = vec4(dot(worldPosition, modelMatrixCol0), dot(worldPosition, modelMatrixCol1), dot(worldPosition, modelMatrixCol2), 1.0);");
+    src.push("  worldPosition.xyz = worldPosition.xyz + offset;");
     src.push("  vec4 viewPosition  = viewMatrix * worldPosition; ");
     src.push("  vec4 worldNormal    = vec4(octDecode(normal.xy), 0.0); ");
     src.push("  vec3 viewNormal     = normalize((viewNormalMatrix * worldNormal).xyz);");
@@ -31710,6 +33872,10 @@ class InstancingNormalsRenderer {
 
         this._aPosition.bindArrayBuffer(state.positionsBuf);
         this._aNormal.bindArrayBuffer(state.normalsBuf);
+
+        this._aOffset.bindArrayBuffer(state.offsetsBuf);
+        instanceExt.vertexAttribDivisorANGLE(this._aOffset.location, 1);
+
         this._aColor.bindArrayBuffer(state.colorsBuf);
         instanceExt.vertexAttribDivisorANGLE(this._aColor.location, 1);
 
@@ -31733,6 +33899,7 @@ class InstancingNormalsRenderer {
         if (this._aFlags2) { // Won't be in shader when not clipping
             instanceExt.vertexAttribDivisorANGLE(this._aFlags2.location, 0);
         }
+        instanceExt.vertexAttribDivisorANGLE(this._aOffset.location, 0);
     }
 
     _allocate() {
@@ -31767,6 +33934,7 @@ class InstancingNormalsRenderer {
         }
 
         this._aPosition = program.getAttribute("position");
+        this._aOffset = program.getAttribute("offset");
         this._aNormal = program.getAttribute("normal");
         this._aColor = program.getAttribute("color");
         this._aFlags = program.getAttribute("flags");
@@ -31912,16 +34080,36 @@ class InstancingRenderers {
     }
 
     _destroy() {
-        this.drawRenderer.destroy();
-        this.drawRendererWithSAO.destroy();
-        this.depthRenderer.destroy();
-        this.normalsRenderer.destroy();
-        this.fillRenderer.destroy();
-        this.edgesRenderer.destroy();
-        this.pickMeshRenderer.destroy();
-        this.pickDepthRenderer.destroy();
-        this.pickNormalsRenderer.destroy();
-        this.occlusionRenderer.destroy();
+        if (this.drawRenderer) {
+            this.drawRenderer.destroy();
+        }
+        if (this.drawRendererWithSAO) {
+            this.drawRendererWithSAO.destroy();
+        }
+        if (this.depthRenderer) {
+            this.depthRenderer.destroy();
+        }
+        if (this.normalsRenderer) {
+            this.normalsRenderer.destroy();
+        }
+        if (this.fillRenderer) {
+            this.fillRenderer.destroy();
+        }
+        if (this.edgesRenderer) {
+            this.edgesRenderer.destroy();
+        }
+        if (this.pickMeshRenderer) {
+            this.pickMeshRenderer.destroy();
+        }
+        if (this.pickDepthRenderer) {
+            this.pickDepthRenderer.destroy();
+        }
+        if (this.pickNormalsRenderer) {
+            this.pickNormalsRenderer.destroy();
+        }
+        if (this.occlusionRenderer) {
+            this.occlusionRenderer.destroy();
+        }
     }
 }
 
@@ -31934,7 +34122,7 @@ function getInstancingRenderers(scene) {
         instancingRenderers = new InstancingRenderers(scene);
         sceneInstancingRenderers[sceneId] = instancingRenderers;
         instancingRenderers._compile();
-        scene.on("compiling", () => {
+        scene.on("compile", () => {
             instancingRenderers._compile();
         });
         scene.on("destroyed", () => {
@@ -31950,9 +34138,10 @@ const MAX_VERTS$1 = bigIndicesSupported$2 ? 5000000 : 65530;
 const quantizedPositions = new Uint16Array(MAX_VERTS$1 * 3);
 const compressedNormals = new Int8Array(MAX_VERTS$1 * 3);
 const tempUint8Vec4 = new Uint8Array(4);
-const tempVec3a$1 = math.vec4([0, 0, 0, 1]);
-const tempVec3b$2 = math.vec4([0, 0, 0, 1]);
-const tempVec3c$2 = math.vec4([0, 0, 0, 1]);
+const tempVec3a$2 = math.vec3();
+const tempVec4a$1 = math.vec4([0, 0, 0, 1]);
+const tempVec4b$1 = math.vec4([0, 0, 0, 1]);
+const tempVec4c$1 = math.vec4([0, 0, 0, 1]);
 
 /**
  * @private
@@ -31962,9 +34151,6 @@ class InstancingLayer {
     /**
      * @param model
      * @param cfg
-     * @param cfg.positionsDecodeMatrix
-     * @param cfg.positionsCompression - "precompressed" \ "disabled" | "auto".
-     * @param cfg.normalsCompression - "precompressed" | "auto".
      * @param cfg.primitive
      * @param cfg.positions Flat float Local-space positions array.
      * @param cfg.normals Flat float normals array.
@@ -32013,32 +34199,11 @@ class InstancingLayer {
             obb: math.OBB3()
         };
 
-        let positionsCompression = cfg.positionsCompression;
-        let normalsCompression = cfg.normalsCompression;
-
-        if (positionsCompression !== "precompressed" && positionsCompression !== "disabled" && positionsCompression !== "auto") {
-            model.error("Unsupported value for 'positionsCompression' - supported values are 'precompressed', 'disabled' and 'auto' - defaulting to 'auto'");
-            positionsCompression = "auto";
-        }
-
-        if (normalsCompression !== "precompressed" && normalsCompression !== "auto") {
-            model.error("Unsupported value for 'normalsCompression' - supported values are 'precompressed' and 'auto' - defaulting to 'auto'");
-            normalsCompression = "auto";
-        }
+        const preCompressed = (!!cfg.positionsDecodeMatrix);
 
         if (cfg.positions) {
 
-            if (positionsCompression === "disabled") {
-
-                let lenPositions = cfg.positions.length;
-                let localAABB = math.collapseAABB3();
-                math.expandAABB3Points3(localAABB, cfg.positions);
-                math.AABB3ToOBB3(localAABB, stateCfg.obb);
-                let normalized = false;
-                stateCfg.positionsBuf = new ArrayBuf(gl, gl.ARRAY_BUFFER, cfg.positions, lenPositions, 3, gl.STATIC_DRAW, normalized);
-                math.identityMat4(stateCfg.positionsDecodeMatrix); // Null decode matrix, does nothing in shaders
-
-            } else if (positionsCompression === "precompressed") {
+            if (preCompressed) {
 
                 let normalized = false;
                 stateCfg.positionsBuf = new ArrayBuf(gl, gl.ARRAY_BUFFER, cfg.positions, cfg.positions.length, 3, gl.STATIC_DRAW, normalized);
@@ -32049,7 +34214,7 @@ class InstancingLayer {
                 geometryCompressionUtils.decompressAABB(localAABB, stateCfg.positionsDecodeMatrix);
                 math.AABB3ToOBB3(localAABB, stateCfg.obb);
 
-            } else { // "auto"
+            } else {
 
                 let lenPositions = cfg.positions.length;
                 let localAABB = math.collapseAABB3();
@@ -32062,7 +34227,7 @@ class InstancingLayer {
         }
         if (cfg.normals) {
 
-            if (normalsCompression === "precompressed") {
+            if (preCompressed) {
 
                 let normalized = true; // For oct-encoded UInt8
                 stateCfg.normalsBuf = new ArrayBuf(gl, gl.ARRAY_BUFFER, cfg.normals, cfg.normals.length, 3, gl.STATIC_DRAW, normalized);
@@ -32097,6 +34262,7 @@ class InstancingLayer {
         this._numSelectedLayerPortions = 0;
         this._numEdgesLayerPortions = 0;
         this._numPickableLayerPortions = 0;
+        this._numCulledLayerPortions = 0;
 
         /** @private */
         this.numIndices = (cfg.indices) ? cfg.indices.length / 3 : 0;
@@ -32106,6 +34272,7 @@ class InstancingLayer {
         this._flags2 = [];
         this._colors = [];
         this._pickColors = [];
+        this._offsets = [];
 
         // Modeling matrix per instance, array for each column
         this._modelMatrixCol0 = [];
@@ -32153,6 +34320,7 @@ class InstancingLayer {
         var clippable = !!(flags & RENDER_FLAGS.CLIPPABLE) ? 255 : 0;
         var edges = !!(flags & RENDER_FLAGS.EDGES) ? 255 : 0;
         var pickable = !!(flags & RENDER_FLAGS.PICKABLE) ? 255 : 0;
+        var culled = !!(flags & RENDER_FLAGS.CULLED) ? 255 : 0;
 
         this._flags.push(visible);
         this._flags.push(xrayed);
@@ -32162,7 +34330,7 @@ class InstancingLayer {
         this._flags2.push(clippable);
         this._flags2.push(edges);
         this._flags2.push(pickable);
-        this._flags2.push(0); // Unused
+        this._flags2.push(culled);
 
         if (visible) {
             this._numVisibleLayerPortions++;
@@ -32188,6 +34356,10 @@ class InstancingLayer {
             this._numPickableLayerPortions++;
             this.model.numPickableLayerPortions++;
         }
+        if (culled) {
+            this._numCulledLayerPortions++;
+            this.model.numCulledLayerPortions++;
+        }
 
         const r = rgbaInt[0]; // Color is pre-quantized by PerformanceModel
         const g = rgbaInt[1];
@@ -32201,6 +34373,10 @@ class InstancingLayer {
         this._colors.push(g);
         this._colors.push(b);
         this._colors.push(opacity);
+
+        this._offsets.push(0);
+        this._offsets.push(0);
+        this._offsets.push(0);
 
         this._modelMatrixCol0.push(meshMatrix[0]);
         this._modelMatrixCol0.push(meshMatrix[4]);
@@ -32250,15 +34426,15 @@ class InstancingLayer {
         var obb = this._state.obb;
         var lenPositions = obb.length;
         for (var i = 0; i < lenPositions; i += 4) {
-            tempVec3a$1[0] = obb[i + 0];
-            tempVec3a$1[1] = obb[i + 1];
-            tempVec3a$1[2] = obb[i + 2];
-            math.transformPoint4(meshMatrix, tempVec3a$1, tempVec3b$2);
+            tempVec4a$1[0] = obb[i + 0];
+            tempVec4a$1[1] = obb[i + 1];
+            tempVec4a$1[2] = obb[i + 2];
+            math.transformPoint4(meshMatrix, tempVec4a$1, tempVec4b$1);
             if (worldMatrix) {
-                math.transformPoint4(worldMatrix, tempVec3b$2, tempVec3c$2);
-                math.expandAABB3Point3(worldAABB, tempVec3c$2);
+                math.transformPoint4(worldMatrix, tempVec4b$1, tempVec4c$1);
+                math.expandAABB3Point3(worldAABB, tempVec4c$1);
             } else {
-                math.expandAABB3Point3(worldAABB, tempVec3b$2);
+                math.expandAABB3Point3(worldAABB, tempVec4b$1);
             }
         }
 
@@ -32289,6 +34465,11 @@ class InstancingLayer {
             this._state.flags2Buf = new ArrayBuf(gl, gl.ARRAY_BUFFER, new Uint8Array(this._flags2), this._flags2.length, 4, gl.DYNAMIC_DRAW, normalized);
             this._flags = [];
             this._flags2 = [];
+        }
+        if (this._offsets.length > 0) {
+            let normalized = false;
+            this._state.offsetsBuf = new ArrayBuf(gl, gl.ARRAY_BUFFER, new Float32Array(this._offsets), this._offsets.length, 3, gl.DYNAMIC_DRAW, normalized);
+            this._offsets = []; // Release memory
         }
         if (this._modelMatrixCol0.length > 0) {
 
@@ -32343,6 +34524,10 @@ class InstancingLayer {
         if (flags & RENDER_FLAGS.PICKABLE) {
             this._numPickableLayerPortions++;
             this.model.numPickableLayerPortions++;
+        }
+        if (flags & RENDER_FLAGS.CULLED) {
+            this._numCulledLayerPortions++;
+            this.model.numCulledLayerPortions++;
         }
         this._setFlags(portionId, flags);
         this._setFlags2(portionId, flags);
@@ -32445,6 +34630,20 @@ class InstancingLayer {
         this._setFlags2(portionId, flags);
     }
 
+    setCulled(portionId, flags) {
+        if (!this._finalized) {
+            throw "Not finalized";
+        }
+        if (flags & RENDER_FLAGS.CULLED) {
+            this._numCulledLayerPortions++;
+            this.model.numCulledLayerPortions++;
+        } else {
+            this._numCulledLayerPortions--;
+            this.model.numCulledLayerPortions--;
+        }
+        this._setFlags2(portionId, flags);
+    }
+
     setColor(portionId, color, setOpacity = false) { // RGBA color is normalized as ints
         if (!this._finalized) {
             throw "Not finalized";
@@ -32518,16 +34717,28 @@ class InstancingLayer {
         var clippable = !!(flags & RENDER_FLAGS.CLIPPABLE) ? 255 : 0;
         var edges = !!(flags & RENDER_FLAGS.EDGES) ? 255 : 0;
         var pickable = !!(flags & RENDER_FLAGS.PICKABLE) ? 255 : 0;
+        var culled = !!(flags & RENDER_FLAGS.CULLED) ? 255 : 0;
         tempUint8Vec4[0] = clippable;
         tempUint8Vec4[1] = edges;
         tempUint8Vec4[2] = pickable;
+        tempUint8Vec4[3] = culled;
         this._state.flags2Buf.setData(tempUint8Vec4, portionId * 4, 4);
+    }
+
+    setOffset(portionId, offset) {
+        if (!this._finalized) {
+            throw "Not finalized";
+        }
+        tempVec3a$2[0] = offset[0];
+        tempVec3a$2[1] = offset[1];
+        tempVec3a$2[2] = offset[2];
+        this._state.offsetsBuf.setData(tempVec3a$2, portionId * 3, 3);
     }
 
     //-- NORMAL --------------------------------------------------------------------------------------------------------
 
     drawNormalFillOpaque(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numTransparentLayerPortions === this._numPortions || this._numXRayedLayerPortions === this._numPortions) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numTransparentLayerPortions === this._numPortions || this._numXRayedLayerPortions === this._numPortions) {
             return;
         }
         if (frameCtx.withSAO) {
@@ -32542,7 +34753,7 @@ class InstancingLayer {
     }
 
     drawNormalEdgesOpaque(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numEdgesLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numEdgesLayerPortions === 0) {
             return;
         }
         if (this._instancingRenderers.edgesRenderer) {
@@ -32551,7 +34762,7 @@ class InstancingLayer {
     }
 
     drawNormalFillTransparent(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numTransparentLayerPortions === 0 || this._numXRayedLayerPortions === this._numPortions) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numTransparentLayerPortions === 0 || this._numXRayedLayerPortions === this._numPortions) {
             return;
         }
         if (this._instancingRenderers.drawRenderer) {
@@ -32560,7 +34771,7 @@ class InstancingLayer {
     }
 
     drawNormalTransparentEdges(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numEdgesLayerPortions === 0 || this._numTransparentLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numEdgesLayerPortions === 0 || this._numTransparentLayerPortions === 0) {
             return;
         }
         if (this._instancingRenderers.edgesRenderer) {
@@ -32571,7 +34782,7 @@ class InstancingLayer {
     //--  Post effects support -----------------------------------------------------------------------------------------
 
     drawDepth(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numTransparentLayerPortions === this._numPortions || this._numXRayedLayerPortions === this._numPortions) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numTransparentLayerPortions === this._numPortions || this._numXRayedLayerPortions === this._numPortions) {
             return;
         }
         if (this._instancingRenderers.depthRenderer) {
@@ -32580,7 +34791,7 @@ class InstancingLayer {
     }
 
     drawNormals(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numTransparentLayerPortions === this._numPortions || this._numXRayedLayerPortions === this._numPortions) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numTransparentLayerPortions === this._numPortions || this._numXRayedLayerPortions === this._numPortions) {
             return;
         }
         if (this._instancingRenderers.normalsRenderer) {
@@ -32591,7 +34802,7 @@ class InstancingLayer {
     //-- XRAYED--------------------------------------------------------------------------------------------------------
 
     drawXRayedFillOpaque(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numXRayedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numXRayedLayerPortions === 0) {
             return;
         }
         if (this._instancingRenderers.fillRenderer) {
@@ -32600,7 +34811,7 @@ class InstancingLayer {
     }
 
     drawXRayedEdgesOpaque(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numXRayedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numXRayedLayerPortions === 0) {
             return;
         }
         if (this._instancingRenderers.edgesRenderer) {
@@ -32609,7 +34820,7 @@ class InstancingLayer {
     }
 
     drawXRayedFillTransparent(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numXRayedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numXRayedLayerPortions === 0) {
             return;
         }
         if (this._instancingRenderers.fillRenderer) {
@@ -32618,7 +34829,7 @@ class InstancingLayer {
     }
 
     drawXRayedEdgesTransparent(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numXRayedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numXRayedLayerPortions === 0) {
             return;
         }
         if (this._instancingRenderers.edgesRenderer) {
@@ -32629,7 +34840,7 @@ class InstancingLayer {
     //-- HIGHLIGHTED ---------------------------------------------------------------------------------------------------
 
     drawHighlightedFillOpaque(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numHighlightedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numHighlightedLayerPortions === 0) {
             return;
         }
         if (this._instancingRenderers.fillRenderer) {
@@ -32638,7 +34849,7 @@ class InstancingLayer {
     }
 
     drawHighlightedEdgesOpaque(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numHighlightedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numHighlightedLayerPortions === 0) {
             return;
         }
         if (this._instancingRenderers.edgesRenderer) {
@@ -32647,7 +34858,7 @@ class InstancingLayer {
     }
 
     drawHighlightedFillTransparent(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numHighlightedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numHighlightedLayerPortions === 0) {
             return;
         }
         if (this._instancingRenderers.fillRenderer) {
@@ -32656,7 +34867,7 @@ class InstancingLayer {
     }
 
     drawHighlightedEdgesTransparent(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numHighlightedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numHighlightedLayerPortions === 0) {
             return;
         }
         if (this._instancingRenderers.edgesRenderer) {
@@ -32667,7 +34878,7 @@ class InstancingLayer {
     //-- SELECTED ------------------------------------------------------------------------------------------------------
 
     drawSelectedFillOpaque(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numSelectedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numSelectedLayerPortions === 0) {
             return;
         }
         if (this._instancingRenderers.fillRenderer) {
@@ -32676,7 +34887,7 @@ class InstancingLayer {
     }
 
     drawSelectedEdgesOpaque(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numSelectedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numSelectedLayerPortions === 0) {
             return;
         }
         if (this._instancingRenderers.edgesRenderer) {
@@ -32685,7 +34896,7 @@ class InstancingLayer {
     }
 
     drawSelectedFillTransparent(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numSelectedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numSelectedLayerPortions === 0) {
             return;
         }
         if (this._instancingRenderers.fillRenderer) {
@@ -32694,7 +34905,7 @@ class InstancingLayer {
     }
 
     drawSelectedEdgesTransparent(frameCtx) {
-        if (this._numVisibleLayerPortions === 0 || this._numSelectedLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0 || this._numSelectedLayerPortions === 0) {
             return;
         }
         if (this._instancingRenderers.edgesRenderer) {
@@ -32705,7 +34916,7 @@ class InstancingLayer {
     //---- PICKING ----------------------------------------------------------------------------------------------------
 
     drawPickMesh(frameCtx) {
-        if (this._numVisibleLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0) {
             return;
         }
         if (this._instancingRenderers.pickMeshRenderer) {
@@ -32714,7 +34925,7 @@ class InstancingLayer {
     }
 
     drawPickDepths(frameCtx) {
-        if (this._numVisibleLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0) {
             return;
         }
         if (this._instancingRenderers.pickDepthRenderer) {
@@ -32723,7 +34934,7 @@ class InstancingLayer {
     }
 
     drawPickNormals(frameCtx) {
-        if (this._numVisibleLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0) {
             return;
         }
         if (this._instancingRenderers.pickNormalsRenderer) {
@@ -32734,7 +34945,7 @@ class InstancingLayer {
     //---- OCCLUSION TESTING -------------------------------------------------------------------------------------------
 
     drawOcclusion(frameCtx) {
-        if (this._numVisibleLayerPortions === 0) {
+        if (this._numCulledLayerPortions === this._numPortions || this._numVisibleLayerPortions === 0) {
             return;
         }
         if (this._instancingRenderers.occlusionRenderer) {
@@ -32763,6 +34974,10 @@ class InstancingLayer {
         if (state.flags2Buf) {
             state.flags2Buf.destroy();
             state.flags2Buf = null;
+        }
+        if (state.offsetsBuf) {
+            state.offsetsBuf.destroy();
+            state.offsetsBuf = null;
         }
         if (state.modelMatrixCol0Buf) {
             state.modelMatrixCol0Buf.destroy();
@@ -32946,8 +35161,6 @@ class PerformanceModel extends Component {
      * @param {*} [cfg] Configs
      * @param {String} [cfg.id] Optional ID, unique among all components in the parent scene, generated automatically when omitted.
      * @param {Boolean} [cfg.isModel] Specify ````true```` if this PerformanceModel represents a model, in which case the PerformanceModel will be registered by {@link PerformanceModel#id} in {@link Scene#models} and may also have a corresponding {@link MetaModel} with matching {@link MetaModel#id}, registered by that ID in {@link MetaScene#metaModels}.
-     * @param {String} [cfg.positionsCompression="auto"] Positions compression mode; see {@link PerformanceModel#positionsCompression}.
-     * @param {String} [cfg.normalsCompression="auto"] Normals compression mode; ; see {@link PerformanceModel#normalsCompression}.
      * @param {Number[]} [cfg.position=[0,0,0]] Local 3D position.
      * @param {Number[]} [cfg.scale=[1,1,1]] Local scale.
      * @param {Number[]} [cfg.rotation=[0,0,0]] Local rotation, as Euler angles given in degrees, for each of the X, Y and Z axis.
@@ -32964,32 +35177,20 @@ class PerformanceModel extends Component {
      * @param {Number[]} [cfg.colorize=[1.0,1.0,1.0]] PerformanceModel's initial RGB colorize color, multiplies by the rendered fragment colors.
      * @param {Number} [cfg.opacity=1.0] PerformanceModel's initial opacity factor, multiplies by the rendered fragment alpha.
      * @param {Boolean} [cfg.saoEnabled=true] Indicates if Scalable Ambient Obscurance (SAO) will apply to this PerformanceModel. SAO is configured by the Scene's {@link SAO} component.
+     * @param {Boolean} [cfg.backfaces=false] Indicates if backfaces are visible.
      */
     constructor(owner, cfg = {}) {
 
         super(owner, cfg);
 
-        this._positionsCompression = cfg.positionsCompression || "auto";
-        this._normalsCompression = cfg.normalsCompression || "auto";
-
-        if (this._positionsCompression !== "precompressed" && this._positionsCompression !== "disabled" && this._positionsCompression !== "auto") {
-            this.error("Unsupported value for 'positionsCompression' - supported values are 'precompressed', 'disabled' and 'auto' - defaulting to 'auto'");
-            this._positionsCompression = 'auto;';
-        }
-
-        if (this._normalsCompression !== "precompressed" && this._normalsCompression !== "auto") {
-            this.error("Unsupported value for 'normalsCompression' - supported values are 'precompressed' and 'auto' - defaulting to 'auto'");
-            this._normalsCompression = 'auto;';
-        }
-
         this._aabb = math.collapseAABB3();
+        this._aabbDirty = false;
         this._layerList = []; // For GL state efficiency when drawing, InstancingLayers are in first part, BatchingLayers are in second
         this._nodeList = [];
         this._lastDecodeMatrix = null;
 
         this._instancingLayers = {};
         this._currentBatchingLayer = null;
-        this._batchingBuffer = getBatchingBuffer();
         this._batchingScratchMemory = getBatchingLayerScratchMemory(this);
 
         this._meshes = {};
@@ -33042,6 +35243,11 @@ class PerformanceModel extends Component {
          */
         this.numPickableLayerPortions = 0;
 
+        /**
+         * @private
+         */
+        this.numCulledLayerPortions = 0;
+
         /** @private */
         this.numEntities = 0;
 
@@ -33061,6 +35267,8 @@ class PerformanceModel extends Component {
         this.edges = cfg.edges;
         this.colorize = cfg.colorize;
         this.opacity = cfg.opacity;
+
+        this.backfaces = cfg.backfaces;
 
         // Build static matrix
 
@@ -33095,74 +35303,6 @@ class PerformanceModel extends Component {
         this._onCameraViewMatrix = this.scene.camera.on("matrix", () => {
             this._viewMatrixDirty = true;
         });
-    }
-
-    /**
-     * Sets the positions compression mode.
-     *
-     * This configures how the {@link PerformanceModel#createGeometry} and {@link PerformanceModel#createMesh} methods
-     * treat their ````positions```` arguments.
-     *
-     * Accepted values are:
-     *
-     * * "auto" - causes the methods to expect ````positions```` to be uncompressed floats, and then compress them internally.
-     * * "precompressed" - causes the methods to expect ````positions```` to be pre-compressed (quantized) as 16-bit integers and accompanied by a ````positionsDecodeMatrix````.
-     * * "disabled" - causes the methods to expect the ````positions```` to be uncompressed floats, and never compress them.
-     *
-     * @type {String}
-     */
-    set positionsCompression(positionsCompression) {
-        if (this._positionsCompression === positionsCompression) {
-            return;
-        }
-        this._finishBatchingLayer();
-        this._positionsCompression = positionsCompression;
-    }
-
-    /**
-     * Gets the positions compression mode.
-     *
-     * @type {String}
-     */
-    get positionsCompression() {
-        return this._positionsCompression;
-    }
-
-    /**
-     * Sets the normals compression mode.
-     *
-     * This configures how the {@link PerformanceModel#createGeometry} and {@link PerformanceModel#createMesh} methods
-     * treat their ````normals```` arguments.
-     *
-     * Accepted values are:
-     *
-     * * "auto" - causes the methods to expect ````normals```` to be uncompressed floats, and then compress them internally.
-     * * "precompressed" - causes the methods to expect ````normals```` to be pre-compressed (oct-encoded) as 8-bit integers.
-     *
-     * @type {String}
-     */
-    set normalsCompression(normalsCompression) {
-        if (this._normalsCompression === normalsCompression) {
-            return;
-        }
-        this._finishBatchingLayer();
-        this._normalsCompression = normalsCompression;
-    }
-
-    /**
-     * Gets the normals compression mode.
-     *
-     * @type {String}
-     */
-    get normalsCompression() {
-        return this._normalsCompression;
-    }
-
-    _finishBatchingLayer() {
-        if (this._currentBatchingLayer) {
-            this._currentBatchingLayer.finalize();
-            this._currentBatchingLayer = null;
-        }
     }
 
     //------------------------------------------------------------------------------------------------------------------
@@ -33307,37 +35447,20 @@ class PerformanceModel extends Component {
      *
      * We can then supply the geometry ID to {@link PerformanceModel#createMesh} when we want to create meshes that instance the geometry.
      *
-     * Note that this method requires ````positions````, ````normals```` and ````indices```` arrays together - all are mandatory.
-
-     * ## Positions compression
+     * If provide a  ````positionsDecodeMatrix```` , then ````createGeometry()```` will assume
+     * that the ````positions```` and ````normals```` arrays are compressed. When compressed, ````positions```` will be
+     * quantized and in World-space, and ````normals```` will be oct-encoded and in World-space.
      *
-     * The value of {@link PerformanceModel#positionsCompression} determines how this method treats ````positions```` with respect to compression:
-     *
-     * * ````"precompressed"```` causes this method to expect ````positions```` to be pre-compressed (quantized) 16-bit integers and accompanied by ````positionsDecodeMatrix````.
-     * *  ````"auto"```` causes this method to expect ````positions```` to be uncompressed floats, then automatically compress them, while ignoring ````positionsDecodeMatrix```` if provided.
-     * *  ````"disabled"```` - causes this method to expect ````positions```` to be uncompressed floats, and to not compress them, while ignoring ````positionsDecodeMatrix```` if provided.
-     *
-     * ## Normals compression
-     *
-     * The value of {@link PerformanceModel#normalsCompression} determines how this method treats ````normals```` with respect to compression:
-     *
-     * * ````"precompressed"```` causes this method to expect ````normals```` to be pre-compressed (oct-encoded) 8-bit integers.
-     * *  ````"auto"```` causes this method to expect ````normals```` to be uncompressed floats, then automatically compress (oct-encode) them.
+     * Note that ````positions````, ````normals```` and ````indices```` are all required together.
      *
      * @param {*} cfg Geometry properties.
      * @param {String|Number} cfg.id Mandatory ID for the geometry, to refer to with {@link PerformanceModel#createMesh}.
-     * @param {String} [cfg.primitive="triangles"] The primitive type. Accepted values are 'points', 'lines', 'line-loop',
-     * 'line-strip', 'triangles', 'triangle-strip' and 'triangle-fan'.
-     * @param {Number[]} cfg.positions Flat array of positions. When ````PerformanceModel```` is constructed with
-     * ````positionsCompression```` set to ````"precompressed"````, these should be pre-compressed (quantized) as 16-bit integers
-     * and accompanied by ````positionsDecodeMatrix````.
-     * @param {Number[]} cfg.normals Flat array of normal vectors. When ````PerformanceModel```` is constructed with
-     * ````normalsCompression```` set to ````"precompressed"````, these should be pre-compressed (oct-encodes) as
-     * 8-bit integers.
+     * @param {String} [cfg.primitive="triangles"] The primitive type. Accepted values are 'points', 'lines', 'line-loop', 'line-strip', 'triangles', 'triangle-strip' and 'triangle-fan'.
+     * @param {Number[]} cfg.positions Flat array of positions.
+     * @param {Number[]} cfg.normals Flat array of normal vectors.
      * @param {Number[]} cfg.indices Array of triangle indices.
      * @param {Number[]} cfg.edgeIndices Array of edge line indices.
-     * @param {Number[]} [cfg.positionsDecodeMatrix] A 4x4 matrix for decompressing ````positions````. This is expected
-     * when {@link PerformanceModel#positionsCompression} is ````"precompressed"````.
+     * @param {Number[]} [cfg.positionsDecodeMatrix] A 4x4 matrix for decompressing ````positions````.
      */
     createGeometry(cfg) {
         if (!instancedArraysSupported) {
@@ -33353,10 +35476,6 @@ class PerformanceModel extends Component {
             this.error("Geometry already created: " + geometryId);
             return;
         }
-
-        cfg.positionsCompression = this._positionsCompression;
-        cfg.normalsCompression = this._normalsCompression;
-
         const instancingLayer = new InstancingLayer(this, cfg);
         this._instancingLayers[geometryId] = instancingLayer;
         this._layerList.push(instancingLayer);
@@ -33372,46 +35491,34 @@ class PerformanceModel extends Component {
      * To share a geometry with other meshes, provide the ID of a geometry created earlier
      * with {@link PerformanceModel#createGeometry}.
      *
-     * To create unique geometry for the mesh, provide geometry data arrays. Note that ````positions````,
-     * ````normals```` and ````indices```` arrays are all required together.
+     * To create unique geometry for the mesh, provide geometry data arrays.
      *
-     * ## Positions compression
+     * Internally, PerformanceModel will batch all unique mesh geometries into the same arrays, which improves
+     * rendering performance.
      *
-     * The value of {@link PerformanceModel#positionsCompression} determines how this method treats ````positions```` with respect to compression:
+     * If you accompany the arrays with a  ````positionsDecodeMatrix```` , then ````createMesh()```` will assume
+     * that the ````positions```` and ````normals```` arrays are compressed. When compressed, ````positions```` will be
+     * quantized and in World-space, and ````normals```` will be oct-encoded and in World-space.
      *
-     * * ````"precompressed"```` causes this method to expect ````positions```` to be pre-compressed (quantized) 16-bit integers and accompanied by ````positionsDecodeMatrix````.
-     * *  ````"auto"```` causes this method to expect ````positions```` to be uncompressed floats, then automatically compress them, while ignoring ````positionsDecodeMatrix```` if provided.
-     * *  ````"disabled"```` - causes this method to expect ````positions```` to be uncompressed floats, and to not compress them, while ignoring ````positionsDecodeMatrix```` if provided.
+     * When creating compressed batches, ````createMesh()```` will start a new batch each time ````positionsDecodeMatrix````
+     * changes. Therefore, to combine arrays into the minimum number of batches, it's best for performance to create
+     * your shared meshes in runs that have the value for ````positionsDecodeMatrix````.
      *
-     * ## Normals compression
-     *
-     * The value of {@link PerformanceModel#normalsCompression} determines how this method treats ````normals```` with respect to compression:
-     *
-     * * ````"precompressed"```` causes this method to expect ````normals```` to be pre-compressed (oct-encoded) 8-bit integers.
-     * *  ````"auto"```` causes this method to expect ````normals```` to be uncompressed floats, then automatically compress (oct-encode) them.
+     * Note that ````positions````, ````normals```` and ````indices```` are all required together.
      *
      * @param {object} cfg Object properties.
      * @param {String} cfg.id Mandatory ID for the new mesh. Must not clash with any existing components within the {@link Scene}.
-     * @param {String|Number} [cfg.geometryId] ID of a geometry to instance, previously created with
-     * {@link PerformanceModel#createGeometry:method"}}createMesh(){{/crossLink}}. Overrides all other geometry
-     * arrays given to this method.
-     * @param {String} [cfg.primitive="triangles"]  Geometry primitive type. Ignored when ````geometryId```` is given.
-     * Accepted values are 'points', 'lines', 'line-loop', 'line-strip', 'triangles', 'triangle-strip' and 'triangle-fan'.
+     * @param {String|Number} [cfg.geometryId] ID of a geometry to instance, previously created with {@link PerformanceModel#createGeometry:method"}}createMesh(){{/crossLink}}. Overrides all other geometry parameters given to this method.
+     * @param {String} [cfg.primitive="triangles"]  Geometry primitive type. Ignored when ````geometryId```` is given. Accepted values are 'points', 'lines', 'line-loop', 'line-strip', 'triangles', 'triangle-strip' and 'triangle-fan'.
      * @param {Number[]} [cfg.positions] Flat array of geometry positions. Ignored when ````geometryId```` is given.
-     * When ````PerformanceModel```` is constructed with ````positionsCompression```` set to ````"precompressed"````,
-     * these should be pre-compressed (quantized) as 16-bit integers and accompanied by ````positionsDecodeMatrix````.
-     * @param {Number[]} [cfg.normals] Flat array of normal vectors. Ignored when ````geometryId```` is given. When
-     * ````PerformanceModel```` is constructed with ````normalsCompression```` set to ````"precompressed"````, these
-     * should be pre-compressed (oct-encodes) as 8-bit integers.
-     * @param {Number[]} [cfg.positionsDecodeMatrix] A 4x4 matrix for decompressing ````positions````. This is expected when {@link PerformanceModel#positionsCompression} is ````"precompressed"````.
+     * @param {Number[]} [cfg.normals] Flat array of normal vectors. Ignored when ````geometryId```` is given.
+     * @param {Number[]} [cfg.positionsDecodeMatrix] A 4x4 matrix for decompressing ````positions````.
      * @param {Number[]} [cfg.indices] Array of triangle indices. Ignored when ````geometryId```` is given.
      * @param {Number[]} [cfg.edgeIndices] Array of edge line indices. Ignored when ````geometryId```` is given.
      * @param {Number[]} [cfg.position=[0,0,0]] Local 3D position. of the mesh
      * @param {Number[]} [cfg.scale=[1,1,1]] Scale of the mesh.
-     * @param {Number[]} [cfg.rotation=[0,0,0]] Rotation of the mesh as Euler angles given in degrees, for each of the
-     * X, Y and Z axis.
-     * @param {Number[]} [cfg.matrix=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]] Mesh modelling transform matrix. Overrides the
-     * ````position````, ````scale```` and ````rotation```` parameters.
+     * @param {Number[]} [cfg.rotation=[0,0,0]] Rotation of the mesh as Euler angles given in degrees, for each of the X, Y and Z axis.
+     * @param {Number[]} [cfg.matrix=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]] Mesh modelling transform matrix. Overrides the ````position````, ````scale```` and ````rotation```` parameters.
      * @param {Number[]} [cfg.color=[1,1,1]] RGB color in range ````[0..1, 0..`, 0..1]````.
      * @param {Number} [cfg.opacity=1] Opacity in range ````[0..1]````.
      */
@@ -33520,41 +35627,33 @@ class PerformanceModel extends Component {
                 return null;
             }
 
-            if (this._positionsCompression !== "disabled") {
-
-                if (cfg.positionsDecodeMatrix) {
-
-                    if (!this._lastDecodeMatrix) {
-                        this._lastDecodeMatrix = math.mat4(cfg.positionsDecodeMatrix);
-
-                    } else {
-
-                        if (!math.compareMat4(this._lastDecodeMatrix, cfg.positionsDecodeMatrix)) {
-                            if (this._currentBatchingLayer) {
-                                this._currentBatchingLayer.finalize();
-                                this._currentBatchingLayer = null;
-                            }
-                            this._lastDecodeMatrix.set(cfg.positionsDecodeMatrix);
+            if (cfg.positionsDecodeMatrix) {
+                if (!this._lastDecodeMatrix) {
+                    this._lastDecodeMatrix = math.mat4(cfg.positionsDecodeMatrix);
+                } else {
+                    if (!math.compareMat4(this._lastDecodeMatrix, cfg.positionsDecodeMatrix)) {
+                        if (this._currentBatchingLayer) {
+                            this._currentBatchingLayer.finalize();
+                            this._currentBatchingLayer = null;
                         }
+                        this._lastDecodeMatrix.set(cfg.positionsDecodeMatrix);
                     }
                 }
             }
 
             if (this._currentBatchingLayer) {
-                if (!this._currentBatchingLayer.canCreatePortion(positions.length)) {
+                if (!this._currentBatchingLayer.canCreatePortion(positions.length, indices.length)) {
                     this._currentBatchingLayer.finalize();
                     this._currentBatchingLayer = null;
                 }
             }
 
             if (!this._currentBatchingLayer) {
+                // console.log("New batching layer");
                 this._currentBatchingLayer = new BatchingLayer(this, {
                     primitive: "triangles",
-                    buffer: this._batchingBuffer,
                     scratchMemory: this._batchingScratchMemory,
                     positionsDecodeMatrix: cfg.positionsDecodeMatrix,
-                    positionsCompression: this._positionsCompression,
-                    normalsCompression: this._normalsCompression,
                 });
                 this._layerList.push(this._currentBatchingLayer);
             }
@@ -33568,7 +35667,7 @@ class PerformanceModel extends Component {
             let meshMatrix;
             let worldMatrix = this._worldMatrixNonIdentity ? this._worldMatrix : null;
 
-            if (this._positionsCompression !== "precompressed") {
+            if (!cfg.positionsDecodeMatrix) {
 
                 if (cfg.matrix) {
                     meshMatrix = cfg.matrix;
@@ -33664,6 +35763,9 @@ class PerformanceModel extends Component {
         if (this._pickable && cfg.pickable !== false) {
             flags = flags | RENDER_FLAGS.PICKABLE;
         }
+        if (this._culled && cfg.culled !== false) {
+            flags = flags | RENDER_FLAGS.CULLED;
+        }
         if (this._clippable && cfg.clippable !== false) {
             flags = flags | RENDER_FLAGS.CLIPPABLE;
         }
@@ -33713,11 +35815,7 @@ class PerformanceModel extends Component {
             this._currentBatchingLayer.finalize();
             this._currentBatchingLayer = null;
         }
-        if (this._batchingBuffer) {
-            putBatchingBuffer(this._batchingBuffer);
-            this._batchingBuffer = null;
-        }
-        for (let geometryId in this._instancingLayers) {
+        for (const geometryId in this._instancingLayers) {
             if (this._instancingLayers.hasOwnProperty(geometryId)) {
                 this._instancingLayers[geometryId].finalize();
             }
@@ -33728,6 +35826,43 @@ class PerformanceModel extends Component {
         }
         this.glRedraw();
         this.scene._aabbDirty = true;
+    }
+
+    //------------------------------------------------------------------------------------------------------------------
+    // PerformanceModel members
+    //------------------------------------------------------------------------------------------------------------------
+
+    /**
+     * Sets if backfaces are rendered for this PerformanceModel.
+     *
+     * Default is ````false````.
+     *
+     * @type {Boolean}
+     */
+    set backfaces(backfaces) {
+        backfaces = !!backfaces;
+        this._backfaces = backfaces;
+        this.glRedraw();
+    }
+
+    /**
+     * Sets if backfaces are rendered for this PerformanceModel.
+     *
+     * Default is ````false````.
+     *
+     * @type {Boolean}
+     */
+    get backfaces() {
+        return this._backfaces;
+    }
+
+    /**
+     * Gets the list of {@link Entity}s within this PerformanceModel.
+     *
+     * @returns {Entity[]}
+     */
+    get entityList() {
+        return this._nodeList;
     }
 
     //------------------------------------------------------------------------------------------------------------------
@@ -33772,7 +35907,19 @@ class PerformanceModel extends Component {
      * @type {Number[]}
      */
     get aabb() {
+        if (this._aabbDirty) {
+            this._rebuildAABB();
+        }
         return this._aabb;
+    }
+
+    _rebuildAABB() {
+        math.collapseAABB3(this._aabb);
+        for (let i = 0, len = this._nodeList.length; i < len; i++) {
+            const node = this._nodeList[i];
+            math.expandAABB3(this._aabb, node.aabb);
+        }
+        this._aabbDirty = false;
     }
 
     /**
@@ -33912,7 +36059,10 @@ class PerformanceModel extends Component {
      */
     set culled(culled) {
         culled = !!culled;
-        this._culled = culled; // Whole PerformanceModel is culled
+        this._culled = culled;
+        for (var i = 0, len = this._nodeList.length; i < len; i++) {
+            this._nodeList[i].culled = culled;
+        }
         this.glRedraw();
     }
 
@@ -34131,6 +36281,10 @@ class PerformanceModel extends Component {
             return;
         }
 
+        if (this.numCulledLayerPortions === this.numPortions) {
+            return;
+        }
+
         renderFlags.normalFillOpaque = true;
 
         if (this.numXRayedLayerPortions > 0) {
@@ -34249,14 +36403,31 @@ class PerformanceModel extends Component {
 
     /** @private */
     drawNormalFillOpaque(frameCtx) {
-        this.scene.canvas.gl.disable(this.scene.canvas.gl.CULL_FACE);
-        for (var i = 0, len = this._layerList.length; i < len; i++) {
+        if (frameCtx.backfaces !== this.backfaces) {
+            const gl = this.scene.canvas.gl;
+            if (this.backfaces) {
+                gl.disable(gl.CULL_FACE);
+            } else {
+                gl.enable(gl.CULL_FACE);
+            }
+            frameCtx.backfaces = this.backfaces;
+        }
+        for (let i = 0, len = this._layerList.length; i < len; i++) {
             this._layerList[i].drawNormalFillOpaque(frameCtx);
         }
     }
 
     /** @private */
     drawDepth(frameCtx) { // Dedicated to SAO because it skips transparent objects
+        if (frameCtx.backfaces !== this.backfaces) {
+            const gl = this.scene.canvas.gl;
+            if (this.backfaces) {
+                gl.disable(gl.CULL_FACE);
+            } else {
+                gl.enable(gl.CULL_FACE);
+            }
+            frameCtx.backfaces = this.backfaces;
+        }
         for (var i = 0, len = this._layerList.length; i < len; i++) {
             this._layerList[i].drawDepth(frameCtx);
         }
@@ -34264,6 +36435,15 @@ class PerformanceModel extends Component {
 
     /** @private */
     drawNormals(frameCtx) { // Dedicated to SAO because it skips transparent objects
+        if (frameCtx.backfaces !== this.backfaces) {
+            const gl = this.scene.canvas.gl;
+            if (this.backfaces) {
+                gl.disable(gl.CULL_FACE);
+            } else {
+                gl.enable(gl.CULL_FACE);
+            }
+            frameCtx.backfaces = this.backfaces;
+        }
         for (var i = 0, len = this._layerList.length; i < len; i++) {
             this._layerList[i].drawNormals(frameCtx);
         }
@@ -34379,6 +36559,15 @@ class PerformanceModel extends Component {
         if (this.numVisibleLayerPortions === 0) {
             return;
         }
+        if (frameCtx.backfaces !== this.backfaces) {
+            const gl = this.scene.canvas.gl;
+            if (this.backfaces) {
+                gl.disable(gl.CULL_FACE);
+            } else {
+                gl.enable(gl.CULL_FACE);
+            }
+            frameCtx.backfaces = this.backfaces;
+        }
         for (var i = 0, len = this._layerList.length; i < len; i++) {
             this._layerList[i].drawPickMesh(frameCtx);
         }
@@ -34391,6 +36580,15 @@ class PerformanceModel extends Component {
     drawPickDepths(frameCtx) {
         if (this.numVisibleLayerPortions === 0) {
             return;
+        }
+        if (frameCtx.backfaces !== this.backfaces) {
+            const gl = this.scene.canvas.gl;
+            if (this.backfaces) {
+                gl.disable(gl.CULL_FACE);
+            } else {
+                gl.enable(gl.CULL_FACE);
+            }
+            frameCtx.backfaces = this.backfaces;
         }
         for (var i = 0, len = this._layerList.length; i < len; i++) {
             this._layerList[i].drawPickDepths(frameCtx);
@@ -34405,6 +36603,15 @@ class PerformanceModel extends Component {
         if (this.numVisibleLayerPortions === 0) {
             return;
         }
+        if (frameCtx.backfaces !== this.backfaces) {
+            const gl = this.scene.canvas.gl;
+            if (this.backfaces) {
+                gl.disable(gl.CULL_FACE);
+            } else {
+                gl.enable(gl.CULL_FACE);
+            }
+            frameCtx.backfaces = this.backfaces;
+        }
         for (var i = 0, len = this._layerList.length; i < len; i++) {
             this._layerList[i].drawPickNormals(frameCtx);
         }
@@ -34416,6 +36623,15 @@ class PerformanceModel extends Component {
     drawOcclusion(frameCtx) {
         if (this.numVisibleLayerPortions === 0) {
             return;
+        }
+        if (frameCtx.backfaces !== this.backfaces) {
+            const gl = this.scene.canvas.gl;
+            if (this.backfaces) {
+                gl.disable(gl.CULL_FACE);
+            } else {
+                gl.enable(gl.CULL_FACE);
+            }
+            frameCtx.backfaces = this.backfaces;
         }
         for (var i = 0, len = this._layerList.length; i < len; i++) {
             this._layerList[i].drawOcclusion(frameCtx);
@@ -34433,10 +36649,6 @@ class PerformanceModel extends Component {
         if (this._currentBatchingLayer) {
             this._currentBatchingLayer.destroy();
             this._currentBatchingLayer = null;
-        }
-        if (this._batchingBuffer) {
-            putBatchingBuffer(this._batchingBuffer);
-            this._batchingBuffer = null;
         }
         this.scene.camera.off(this._onCameraViewMatrix);
         for (let i = 0, len = this._layerList.length; i < len; i++) {
@@ -41603,11 +43815,15 @@ var p = /*#__PURE__*/Object.freeze({
 
 /*
 
-Parser for .XKT Format V1
+ Parser for .XKT Format V1
+
+.XKT specifications: https://github.com/xeokit/xeokit-sdk/wiki/XKT-Format
+
+ DEPRECATED
 
  */
 
-const pako = window.pako || p;
+let pako = window.pako || p;
 if (!pako.inflate) {  // See https://github.com/nodeca/pako/issues/97
     pako = pako.default;
 }
@@ -41692,7 +43908,7 @@ function load(viewer, options, inflatedData, performanceModel) {
                 continue;
             }
 
-            const props = options.objectDefaults ? options.objectDefaults[metaObject.type || "DEFAULT"] : null;
+            const props = options.objectDefaults ? options.objectDefaults[metaObject.type] || options.objectDefaults["DEFAULT"] : null;
 
             if (props) {
                 if (props.visible === false) {
@@ -41748,6 +43964,7 @@ function load(viewer, options, inflatedData, performanceModel) {
     }
 }
 
+/** @private */
 const ParserV1 = {
     version: 1,
     parse: function (viewer, options, elements, performanceModel) {
@@ -41761,9 +43978,13 @@ const ParserV1 = {
 
 Parser for .XKT Format V2
 
+DEPRECATED
+
+.XKT specifications: https://github.com/xeokit/xeokit-sdk/wiki/XKT-Format
+
  */
 
-const pako$1 = window.pako || p;
+let pako$1 = window.pako || p;
 if (!pako$1.inflate) {  // See https://github.com/nodeca/pako/issues/97
     pako$1 = pako$1.default;
 }
@@ -41867,7 +44088,7 @@ function load$1(viewer, options, inflatedData, performanceModel) {
             if (options.includeTypesMap && metaObject.type && (!options.includeTypesMap[metaObject.type])) {
                 continue;
             }
-            const props = options.objectDefaults ? options.objectDefaults[metaObject.type || "DEFAULT"] : null;
+            const props = options.objectDefaults ? options.objectDefaults[metaObject.type] || options.objectDefaults["DEFAULT"] : null;
             if (props) {
                 if (props.visible === false) {
                     entityDefaults.visible = false;
@@ -41964,6 +44185,7 @@ function load$1(viewer, options, inflatedData, performanceModel) {
     }
 }
 
+/** @private */
 const ParserV2 = {
     version: 2,
     parse: function (viewer, options, elements, performanceModel) {
@@ -41977,9 +44199,11 @@ const ParserV2 = {
 
 Parser for .XKT Format V3
 
+.XKT specifications: https://github.com/xeokit/xeokit-sdk/wiki/XKT-Format
+
  */
 
-const pako$2 = window.pako || p;
+let pako$2 = window.pako || p;
 if (!pako$2.inflate) {  // See https://github.com/nodeca/pako/issues/97
     pako$2 = pako$2.default;
 }
@@ -42079,7 +44303,7 @@ function load$2(viewer, options, inflatedData, performanceModel) {
                 continue;
             }
 
-            const props = options.objectDefaults ? options.objectDefaults[metaObject.type || "DEFAULT"] : null;
+            const props = options.objectDefaults ? options.objectDefaults[metaObject.type] || options.objectDefaults["DEFAULT"] : null;
 
             if (props) {
                 if (props.visible === false) {
@@ -42175,7 +44399,7 @@ function load$2(viewer, options, inflatedData, performanceModel) {
     }
 }
 
-
+/** @private */
 const ParserV3 = {
     version: 3,
     parse: function (viewer, options, elements, performanceModel) {
@@ -42188,6 +44412,8 @@ const ParserV3 = {
 /*
 
 Parser for .XKT Format V4
+
+.XKT specifications: https://github.com/xeokit/xeokit-sdk/wiki/XKT-Format
 
  */
 
@@ -42251,7 +44477,7 @@ function load$3(viewer, options, inflatedData, performanceModel) {
 
     performanceModel.positionsCompression = "precompressed";
     performanceModel.normalsCompression = "precompressed";
-    
+
     const positions = inflatedData.positions;
     const normals = inflatedData.normals;
     const indices = inflatedData.indices;
@@ -42444,6 +44670,7 @@ function load$3(viewer, options, inflatedData, performanceModel) {
     }
 }
 
+/** @private */
 const ParserV4 = {
     version: 4,
     parse: function (viewer, options, elements, performanceModel) {
@@ -42455,11 +44682,13 @@ const ParserV4 = {
 
 /*
 
-Parser for .XKT Format V5
+ Parser for .XKT Format V5
+
+.XKT specifications: https://github.com/xeokit/xeokit-sdk/wiki/XKT-Format
 
  */
 
-const pako$4 = window.pako || p;
+let pako$4 = window.pako || p;
 if (!pako$4.inflate) {  // See https://github.com/nodeca/pako/issues/97
     pako$4 = pako$4.default;
 }
@@ -42677,6 +44906,7 @@ function load$4(viewer, options, inflatedData, performanceModel) {
     }
 }
 
+/** @private */
 const ParserV5 = {
     version: 5,
     parse: function (viewer, options, elements, performanceModel) {
@@ -43180,6 +45410,7 @@ class XKTLoaderPlugin extends Plugin {
      * @param {Number[]} [params.matrix=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]] The model's world transform matrix. Overrides the position, scale and rotation parameters.
      * @param {Boolean} [params.edges=false] Indicates if the model's edges are initially emphasized.
      * @param {Boolean} [params.saoEnabled=true] Indicates if Scalable Ambient Obscurance (SAO) will apply to the model. SAO is configured by the Scene's {@link SAO} component.
+     * @param {Boolean} [params.backfaces=false] Indicates if backfaces are visible on the model. Making this ````true```` will reduce rendering performance.
      * @param {Boolean} [params.excludeUnclassifiedObjects=false] When loading metadata and this is ````true````, will only load {@link Entity}s that have {@link MetaObject}s (that are not excluded). This is useful when we don't want Entitys in the Scene that are not represented within IFC navigation components, such as {@link StructureTreeViewPlugin}.
      * @returns {Entity} Entity representing the model, which will have {@link Entity#isModel} set ````true```` and will be registered by {@link Entity#id} in {@link Scene#models}.
      */
@@ -43243,6 +45474,10 @@ class XKTLoaderPlugin extends Plugin {
                 } else {
                     this._parseModel(params.xkt, params, options, performanceModel);
                 }
+
+                performanceModel.once("destroyed", () => {
+                    this.viewer.metaScene.destroyMetaModel(performanceModel.id);
+                });
             };
 
             if (params.metaModelSrc) {
@@ -43325,7 +45560,7 @@ class XKTLoaderPlugin extends Plugin {
 
         performanceModel.scene.once("tick", () => {
             performanceModel.scene.fire("modelLoaded", performanceModel.id); // FIXME: Assumes listeners know order of these two events
-            performanceModel.fire("loaded", true, true);
+            performanceModel.fire("loaded", true, false); // Don't forget the event, for late subscribers
         });
     }
 }
