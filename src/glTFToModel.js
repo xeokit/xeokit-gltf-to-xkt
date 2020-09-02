@@ -47,69 +47,43 @@ function glTFToModel(gltf, options = {}) {
         numMeshInstances: 0
     };
 
-    return new Promise((resolve, reject) => {
+    parseBuffers(parsingCtx);
+    parseBufferViews(parsingCtx);
+    freeBuffers(parsingCtx);
+    parseMaterials(parsingCtx);
+    parseDefaultScene(parsingCtx);
 
-        parseBuffers(parsingCtx, () => {
+    model.finalize();
 
-            parseBufferViews(parsingCtx);
-            freeBuffers(parsingCtx);
-            parseMaterials(parsingCtx);
-            parseDefaultScene(parsingCtx);
+    console.log("Number of objects: " + parsingCtx.numObjects);
+    console.log("Only once meshes: " + parsingCtx.numOnlyOnceMeshes);
+    console.log("More than once meshes: " + (parsingCtx.numObjects - parsingCtx.numOnlyOnceMeshes));
+    console.log("Total mesh instances: " + parsingCtx.numMeshInstances);
+    console.log("Instancing factor " + ((parsingCtx.numMeshInstances - parsingCtx.numOnlyOnceMeshes) / parsingCtx.numMeshInstances * 100).toFixed(2) + "%");
 
-            model.finalize();
-
-            console.log("Number of objects: " + parsingCtx.numObjects);
-            console.log("Only once meshes: " + parsingCtx.numOnlyOnceMeshes);
-            console.log("More than once meshes: " + (parsingCtx.numObjects - parsingCtx.numOnlyOnceMeshes));
-            console.log("Total mesh instances: " + parsingCtx.numMeshInstances);
-            console.log("Instancing factor " + ((parsingCtx.numMeshInstances - parsingCtx.numOnlyOnceMeshes) / parsingCtx.numMeshInstances * 100).toFixed(2) + "%");
-
-            resolve(model);
-        });
-    });
-
+    return model;
 }
 
-function parseBuffers(parsingCtx, ok) {  // Parses geometry buffers into temporary  "_buffer" Unit8Array properties on the glTF "buffer" elements
-    var buffers = parsingCtx.gltf.buffers;
-    if (buffers && buffers.length) {
-        var numToLoad = buffers.length;
-        for (let i = 0, len = buffers.length; i < len; i++) {
-            parseBuffer(parsingCtx, buffers[i],
-                () => {
-                    if (--numToLoad === 0) {
-                        ok();
-                    }
-                },
-                (msg) => {
-                    console.error(msg);
-                    if (--numToLoad === 0) {
-                        ok();
-                    }
-                });
+function parseBuffers(parsingCtx) {  // Parses geometry buffers into temporary  "_buffer" Unit8Array properties on the glTF "buffer" elements
+    const buffers = parsingCtx.gltf.buffers;
+    if (buffers) {
+        for (var i = 0, len = buffers.length; i < len; i++) {
+            parseBuffer(parsingCtx, buffers[i]);
         }
-    } else {
-        ok();
     }
 }
 
-function parseBuffer(parsingCtx, bufferInfo, ok, error) {
+function parseBuffer(parsingCtx, bufferInfo) {
     const uri = bufferInfo.uri;
     if (uri) {
-        parseArrayBuffer(parsingCtx, uri, (arrayBuffer) => {
-            bufferInfo._buffer = arrayBuffer;
-            ok();
-        }, error);
+        bufferInfo._buffer = parseArrayBuffer(parsingCtx, uri);
     } else {
         error('gltf/handleBuffer missing uri in ' + JSON.stringify(bufferInfo));
     }
 }
 
-function parseArrayBuffer(parsingCtx, url, ok, err) {
+function parseArrayBuffer(parsingCtx, url) {
     // Check for data: URI
-    var defaultCallback = (_value) => undefined;
-    ok = ok || defaultCallback;
-    err = err || defaultCallback;
     const dataUriRegex = /^data:(.*?)(;base64)?,(.*)$/;
     const dataUriRegexResult = url.match(dataUriRegex);
     if (dataUriRegexResult) { // Safari can't handle data URIs through XMLHttpRequest
@@ -119,28 +93,18 @@ function parseArrayBuffer(parsingCtx, url, ok, err) {
         if (isBase64) {
             data = atob(data);
         }
-        try {
-            const buffer = new ArrayBuffer(data.length);
-            const view = new Uint8Array(buffer);
-            for (var i = 0; i < data.length; i++) {
-                view[i] = data.charCodeAt(i);
-            }
-            ok(buffer);
-
-        } catch (error) {
-            err(error);
+        const buffer = new ArrayBuffer(data.length);
+        const view = new Uint8Array(buffer);
+        for (var i = 0; i < data.length; i++) {
+            view[i] = data.charCodeAt(i);
         }
-    } else {
+        return buffer;
 
+    } else {
+        // Uri is a path to a file
         const absURL = parsingCtx.basePath + url;
-        fs.readFile(absURL, (error, contents) => {
-            if (error !== null) {
-                err(error);
-                return;
-            }
-            const arrayBuffer = toArrayBuffer(contents);
-            ok(arrayBuffer);
-        });
+        const contents = fs.readFileSync(absURL);
+        return toArrayBuffer(contents);
     }
 }
 
