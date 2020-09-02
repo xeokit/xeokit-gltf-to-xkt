@@ -72,7 +72,7 @@ function glTFToModel(gltf, options = {}) {
 
 function parseBuffers(parsingCtx, ok) {  // Parses geometry buffers into temporary  "_buffer" Unit8Array properties on the glTF "buffer" elements
     var buffers = parsingCtx.gltf.buffers;
-    if (buffers) {
+    if (buffers && buffers.length) {
         var numToLoad = buffers.length;
         for (let i = 0, len = buffers.length; i < len; i++) {
             parseBuffer(parsingCtx, buffers[i],
