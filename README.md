@@ -54,9 +54,8 @@ Options:
 
 Supported XKT Formats:
   1 - Oct-encoded normals; Quantized positions; No geometry reuse; DEPRECATED
-  3 - Geometry reuse; Oct-encoded normals; Quantized positions; RECOMMENDED
-  4 - Geometry reuse; Oct-encoded normals; Quantized positions; Positions quantized in partitions; EXPERIMENTAL
-  5 - Geometry reuse; Oct-encoded normals; 32-bit floating-point positions; EXPERIMENTAL
+  3 - Geometry reuse; Oct-encoded normals; Quantized positions;  
+  6 - Double-precision coordinates; Geometry reuse; Oct-encoded normals; 
 ```
 
 ### Programmatically
