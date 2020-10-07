@@ -2,21 +2,17 @@
 
 const commander = require('commander');
 
-const ConverterV1 = require('./src/ConverterV1/ConverterV1.js');
-const ConverterV3 = require('./src/ConverterV3/ConverterV3.js');
-const ConverterV4 = require('./src/ConverterV4/ConverterV4.js');
-const ConverterV5 = require('./src/ConverterV5/ConverterV5.js');
-const ConverterV6 = require('./src/ConverterV6/ConverterV6.js');
+const ConverterV1 = require('./build/ConverterV1.js');
+const ConverterV3 = require('./build/ConverterV3.js');
+const ConverterV6 = require('./build/ConverterV6.js');
 
 const converters = {};
 
 converters[ConverterV1.version] = ConverterV1;
 converters[ConverterV3.version] = ConverterV3;
-converters[ConverterV4.version] = ConverterV4;
-converters[ConverterV5.version] = ConverterV5;
 converters[ConverterV6.version] = ConverterV6;
 
-const defaultConverter = ConverterV3;
+const defaultConverter = ConverterV6;
 
 const program = new commander.Command();
 
