@@ -12,7 +12,7 @@ converters[ConverterV1.version] = ConverterV1;
 converters[ConverterV3.version] = ConverterV3;
 converters[ConverterV6.version] = ConverterV6;
 
-const defaultConverter = ConverterV6;
+const defaultConverter = ConverterV3;
 
 const program = new commander.Command();
 
@@ -72,7 +72,7 @@ function logSupportedFormats() {
     console.log('\nSupported XKT Formats:');
     for (let format in converters) {
         const converter = converters[format];
-        console.log('  ' + converter.version + ' - ' + converter.desc);
+        console.log('  ' + converter.version + ' - ' + converter.desc + (defaultConverter.version === converter.version ? " (DEFAULT)" : ""));
     }
     console.log();
 }
