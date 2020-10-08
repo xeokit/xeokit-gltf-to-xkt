@@ -16,7 +16,7 @@ const modelToXKT = require('./modelToXKT');
 
 module.exports = {
     version: 1,
-    desc: "Oct-encoded normals; Quantized positions; No geometry reuse; DEPRECATED",
+    desc: "Oct-encoded normals; Quantized positions; No geometry reuse;",
     convert: async function convert(gltfPath, xktPath) {
         const content = await readGltf(gltfPath);
         const gltf = JSON.parse(content);
