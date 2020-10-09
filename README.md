@@ -46,10 +46,16 @@ $ gltf2xkt --help
 Usage: gltf2xkt [options]
 
 Options:
-  -v, --version        output the version number
-  -s, --source [file]  The path to the source gltf file.
-  -o, --output [file]  The path to the target xkt file.
-  -h, --help           output usage information
+  -v, --version          output the version number
+  -s, --source [file]    path to the source glTF file
+  -o, --output [file]    path to the target xkt file
+  -f  --format [number]  XKT format to write
+  -h, --help             output usage information
+
+Supported XKT Formats:
+  1 - Oct-encoded normals; Quantized positions; No geometry reuse;
+  3 - Geometry reuse; Oct-encoded normals; Quantized positions; (DEFAULT)
+  6 - RTC coordinates; Geometry reuse; Oct-encoded normals; Quantized positions;
 ```
 
 ### Programmatically
@@ -70,7 +76,7 @@ gltf2xkt
     console.error('Something went wrong:', error);
   });
 ```
-
+ 
 ## Development
 
 ```
@@ -96,9 +102,3 @@ See `.eslint` and `.prettierrc` for code style guide.
 [XKTLoaderPlugin](https://xeokit.github.io/xeokit-sdk/docs/class/src/plugins/XKTLoaderPlugin/XKTLoaderPlugin.js~XKTLoaderPlugin.html) 
 are based on prototypes by [Toni Marti](https://github.com/tmarti) at [uniZite](https://www.unizite.com/login). Find the original discussion around those prototypes [here](https://github.com/xeokit/xeokit-sdk/issues/48#).
 - Thanks to [Adam Eri](https://github.com/eriadam) at [BIMSpot](https://bimspot.io/) for converting ````xeokit-gltf-to-xkt```` to work as a CLI tool.  
-
-## Work Remaining
-
-* [ ] Publish to `npm`.
-* [ ] At present, ````xeokit-gltf-to-xkt```` only works with glTF 2.0 models that
-have base-64 geometry buffers embedded within the glTF JSON.

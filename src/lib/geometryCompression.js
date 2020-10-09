@@ -1,28 +1,23 @@
 const math = require('./math');
 
-var quantizePositions = (function () { // http://cg.postech.ac.kr/research/mesh_comp_mobile/mesh_comp_mobile_conference.pdf
-    const translate = math.mat4();
-    const scale = math.mat4();
-    return function (positions, lenPositions, aabb, quantizedPositions) {
-        const xmin = aabb[0];
-        const ymin = aabb[1];
-        const zmin = aabb[2];
-        const xwid = aabb[3] - xmin;
-        const ywid = aabb[4] - ymin;
-        const zwid = aabb[5] - zmin;
-        // const maxInt = 2000000;
-        const maxInt = 65525;
-        const xMultiplier = maxInt / xwid;
-        const yMultiplier = maxInt / ywid;
-        const zMultiplier = maxInt / zwid;
-        let i;
-        for (i = 0; i < lenPositions; i += 3) {
-            quantizedPositions[i + 0] = Math.floor((positions[i + 0] - xmin) * xMultiplier);
-            quantizedPositions[i + 1] = Math.floor((positions[i + 1] - ymin) * yMultiplier);
-            quantizedPositions[i + 2] = Math.floor((positions[i + 2] - zmin) * zMultiplier);
-        }
-    };
-})();
+var quantizePositions = function (positions, lenPositions, aabb, quantizedPositions) {
+    const xmin = aabb[0];
+    const ymin = aabb[1];
+    const zmin = aabb[2];
+    const xwid = aabb[3] - xmin;
+    const ywid = aabb[4] - ymin;
+    const zwid = aabb[5] - zmin;
+    const maxInt = 65535;
+    const xMultiplier = maxInt / xwid;
+    const yMultiplier = maxInt / ywid;
+    const zMultiplier = maxInt / zwid;
+    let i;
+    for (i = 0; i < lenPositions; i += 3) {
+        quantizedPositions[i + 0] = Math.floor((positions[i + 0] - xmin) * xMultiplier);
+        quantizedPositions[i + 1] = Math.floor((positions[i + 1] - ymin) * yMultiplier);
+        quantizedPositions[i + 2] = Math.floor((positions[i + 2] - zmin) * zMultiplier);
+    }
+};
 
 var createPositionsDecodeMatrix = (function () {
     const translate = math.mat4();
@@ -35,8 +30,7 @@ var createPositionsDecodeMatrix = (function () {
         const xwid = aabb[3] - xmin;
         const ywid = aabb[4] - ymin;
         const zwid = aabb[5] - zmin;
-        // const maxInt = 2000000;
-        const maxInt = 65525;
+        const maxInt = 65535;
         math.identityMat4(translate);
         math.translationMat4v(aabb, translate);
         math.identityMat4(scale);

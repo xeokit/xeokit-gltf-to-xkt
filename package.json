@@ -1,23 +1,32 @@
 {
     "name": "@xeokit/xeokit-gltf-to-xkt",
-    "version": "0.0.3",
-    "description": "xeokit-gltf-to-xkt converts models from glTF 2.0 to xeokit's optimized .xkt format.",
+    "version": "0.0.4",
+    "description": "xeokit-gltf-to-xkt converts models from glTF 2.0 to xeokit's native .xkt geometry format.",
     "main": "src/index.js",
     "dependencies": {
+        "@xeokit/xeokit-xkt-utils": "0.0.4",
         "atob": "^2.1.2",
         "commander": "^2.20.0",
         "compression": "^1.6.1",
-        "pako": "^1.0.10"
+        "pako": "^1.0.11"
     },
     "devDependencies": {
-        "eslint": "^6.1.0",
-        "prettier": "^1.18.2"
+        "autoprefixer": "^9.8.5",
+        "esdoc": "^1.1.0",
+        "esdoc-standard-plugin": "^1.0.0",
+        "eslint": "^6.8.0",
+        "prettier": "^1.19.1",
+        "rollup": "^1.32.1",
+        "rollup-plugin-minify-es": "^1.1.1",
+        "rollup-plugin-node-resolve": "^5.2.0",
+        "rollup-plugin-commonjs": "^10.1.0"
     },
     "preferGlobal": true,
     "bin": {
         "gltf2xkt": "./gltf2xkt.js"
     },
     "scripts": {
+        "build": " rollup -c",
         "publish": "npm publish --access public"
     },
     "repository": {

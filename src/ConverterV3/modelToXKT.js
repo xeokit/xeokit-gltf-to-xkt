@@ -197,7 +197,7 @@ function toArrayBuffer(elements) {
         dataArray.set(element, offset);
         offset += element.length;
     }
-    console.log("arrayBuffer takes " + (dataArray.length / 1024).toFixed(3) + " kB");
+    console.log("Array buffer size: " + (dataArray.length / 1024).toFixed(3) + " kB");
     return dataArray.buffer;
 }
 
