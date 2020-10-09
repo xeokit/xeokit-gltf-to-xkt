@@ -8,9 +8,9 @@ var fs = _interopDefault(require('fs'));
 
 // Some temporary vars to help avoid garbage collection
 
-const tempMat1 = new Float64Array(16);
-const tempMat2 = new Float64Array(16);
-const tempVec4 = new Float64Array(4);
+const tempMat1 = new Float32Array(16);
+const tempMat2 = new Float32Array(16);
+const tempVec4 = new Float32Array(4);
 
 /**
  * @private
@@ -42,7 +42,7 @@ const math = {
      * @returns {Number[]}
      */
     vec2(values) {
-        return new Float64Array(values || 2);
+        return new Float32Array(values || 2);
     },
 
     /**
@@ -53,7 +53,7 @@ const math = {
      * @returns {Number[]}
      */
     vec3(values) {
-        return new Float64Array(values || 3);
+        return new Float32Array(values || 3);
     },
 
     /**
@@ -64,7 +64,7 @@ const math = {
      * @returns {Number[]}
      */
     vec4(values) {
-        return new Float64Array(values || 4);
+        return new Float32Array(values || 4);
     },
 
     /**
@@ -75,7 +75,7 @@ const math = {
      * @returns {Number[]}
      */
     mat3(values) {
-        return new Float64Array(values || 9);
+        return new Float32Array(values || 9);
     },
 
     /**
@@ -86,7 +86,7 @@ const math = {
      * @static
      * @returns {Number[]}
      */
-    mat3ToMat4(mat3, mat4 = new Float64Array(16)) {
+    mat3ToMat4(mat3, mat4 = new Float32Array(16)) {
         mat4[0] = mat3[0];
         mat4[1] = mat3[1];
         mat4[2] = mat3[2];
@@ -114,7 +114,7 @@ const math = {
      * @returns {Number[]}
      */
     mat4(values) {
-        return new Float64Array(values || 16);
+        return new Float32Array(values || 16);
     },
 
     /**
@@ -126,7 +126,7 @@ const math = {
      * @returns {Number[]}
      */
     mat4ToMat3(mat4, mat3) { // TODO
-        //return new Float64Array(values || 9);
+        //return new Float32Array(values || 9);
     },
 
     /**
@@ -688,7 +688,7 @@ const math = {
     },
 
     distVec3: ((() => {
-        const vec = new Float64Array(3);
+        const vec = new Float32Array(3);
         return (v, w) => math.lenVec3(math.subVec3(v, w, vec));
     }))(),
 
@@ -704,7 +704,7 @@ const math = {
     },
 
     distVec2: ((() => {
-        const vec = new Float64Array(2);
+        const vec = new Float32Array(2);
         return (v, w) => math.lenVec2(math.subVec2(v, w, vec));
     }))(),
 
@@ -774,7 +774,7 @@ const math = {
      */
     vec3FromMat4Scale: ((() => {
 
-        const tempVec3 = new Float64Array(3);
+        const tempVec3 = new Float32Array(3);
 
         return (m, dest) => {
 
@@ -834,7 +834,7 @@ const math = {
      * @returns {*[]}
      */
     xyzObjectToArray(xyz, arry) {
-        arry = arry || new Float64Array(3);
+        arry = arry || new Float32Array(3);
         arry[0] = xyz.x;
         arry[1] = xyz.y;
         arry[2] = xyz.z;
@@ -901,7 +901,7 @@ const math = {
      * @static
      */
     diagonalMat4v(v) {
-        return new Float64Array([
+        return new Float32Array([
             v[0], 0.0, 0.0, 0.0,
             0.0, v[1], 0.0, 0.0,
             0.0, 0.0, v[2], 0.0,
@@ -932,7 +932,7 @@ const math = {
      * @method identityMat4
      * @static
      */
-    identityMat4(mat = new Float64Array(16)) {
+    identityMat4(mat = new Float32Array(16)) {
         mat[0] = 1.0;
         mat[1] = 0.0;
         mat[2] = 0.0;
@@ -961,7 +961,7 @@ const math = {
      * @method identityMat3
      * @static
      */
-    identityMat3(mat = new Float64Array(9)) {
+    identityMat3(mat = new Float32Array(9)) {
         mat[0] = 1.0;
         mat[1] = 0.0;
         mat[2] = 0.0;
@@ -1241,7 +1241,7 @@ const math = {
      */
     mulMat3(a, b, dest) {
         if (!dest) {
-            dest = new Float64Array(9);
+            dest = new Float32Array(9);
         }
 
         const a11 = a[0];
@@ -1544,7 +1544,7 @@ const math = {
      * @static
      */
     translationMat4c: ((() => {
-        const xyz = new Float64Array(3);
+        const xyz = new Float32Array(3);
         return (x, y, z, dest) => {
             xyz[0] = x;
             xyz[1] = y;
@@ -1722,7 +1722,7 @@ const math = {
      * @static
      */
     scalingMat4c: ((() => {
-        const xyz = new Float64Array(3);
+        const xyz = new Float32Array(3);
         return (x, y, z, dest) => {
             xyz[0] = x;
             xyz[1] = y;
@@ -1954,8 +1954,8 @@ const math = {
 
     decomposeMat4: (() => {
 
-        const vec = new Float64Array(3);
-        const matrix = new Float64Array(16);
+        const vec = new Float32Array(3);
+        const matrix = new Float32Array(16);
 
         return function decompose(mat, position, quaternion, scale) {
 
@@ -2604,9 +2604,9 @@ const math = {
      * @static
      */
     unprojectVec3: ((() => {
-        const mat = new Float64Array(16);
-        const mat2 = new Float64Array(16);
-        const mat3 = new Float64Array(16);
+        const mat = new Float32Array(16);
+        const mat2 = new Float32Array(16);
+        const mat3 = new Float32Array(16);
         return function (p, viewMat, projMat, q) {
             return this.transformVec3(this.mulMat4(this.inverseMat4(viewMat, mat), this.inverseMat4(projMat, mat2), mat3), p, q)
         };
@@ -2838,7 +2838,7 @@ const math = {
     },
 
     quaternionToEuler: ((() => {
-        const mat = new Float64Array(16);
+        const mat = new Float32Array(16);
         return (q, order, dest) => {
             dest = dest || math.vec3();
             math.quaternionToRotationMat4(q, mat);
@@ -3024,7 +3024,7 @@ const math = {
      * @private
      */
     AABB3(values) {
-        return new Float64Array(values || 6);
+        return new Float32Array(values || 6);
     },
 
     /**
@@ -3033,7 +3033,7 @@ const math = {
      * @private
      */
     AABB2(values) {
-        return new Float64Array(values || 4);
+        return new Float32Array(values || 4);
     },
 
     /**
@@ -3042,7 +3042,7 @@ const math = {
      * @private
      */
     OBB3(values) {
-        return new Float64Array(values || 32);
+        return new Float32Array(values || 32);
     },
 
     /**
@@ -3051,12 +3051,12 @@ const math = {
      * @private
      */
     OBB2(values) {
-        return new Float64Array(values || 16);
+        return new Float32Array(values || 16);
     },
 
     /** Returns a new 3D bounding sphere */
     Sphere3(x, y, z, r) {
-        return new Float64Array([x, y, z, r]);
+        return new Float32Array([x, y, z, r]);
     },
 
     /**
@@ -3124,9 +3124,9 @@ const math = {
      */
     getAABB3Diag: ((() => {
 
-        const min = new Float64Array(3);
-        const max = new Float64Array(3);
-        const tempVec3 = new Float64Array(3);
+        const min = new Float32Array(3);
+        const max = new Float32Array(3);
+        const tempVec3 = new Float32Array(3);
 
         return aabb => {
 
@@ -3151,9 +3151,9 @@ const math = {
      */
     getAABB3DiagPoint: ((() => {
 
-        const min = new Float64Array(3);
-        const max = new Float64Array(3);
-        const tempVec3 = new Float64Array(3);
+        const min = new Float32Array(3);
+        const max = new Float32Array(3);
+        const tempVec3 = new Float32Array(3);
 
         return (aabb, p) => {
 
@@ -3285,7 +3285,7 @@ const math = {
      */
     positions3ToAABB3: ((() => {
 
-        const p = new Float64Array(3);
+        const p = new Float32Array(3);
 
         return (positions, aabb, positionsDecodeMatrix) => {
             aabb = aabb || math.AABB3();
@@ -3480,7 +3480,7 @@ const math = {
      */
     points3ToSphere3: ((() => {
 
-        const tempVec3 = new Float64Array(3);
+        const tempVec3 = new Float32Array(3);
 
         return (points, sphere) => {
 
@@ -3528,8 +3528,8 @@ const math = {
      */
     positions3ToSphere3: ((() => {
 
-        const tempVec3a = new Float64Array(3);
-        const tempVec3b = new Float64Array(3);
+        const tempVec3a = new Float32Array(3);
+        const tempVec3b = new Float32Array(3);
 
         return (positions, sphere) => {
 
@@ -3583,8 +3583,8 @@ const math = {
      */
     OBB3ToSphere3: ((() => {
 
-        const point = new Float64Array(3);
-        const tempVec3 = new Float64Array(3);
+        const point = new Float32Array(3);
+        const tempVec3 = new Float32Array(3);
 
         return (points, sphere) => {
 
