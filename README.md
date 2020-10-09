@@ -5,15 +5,18 @@
 ## Contents
 
  - [Overview](#overview)
- - [Credits](#credits)
  - [Usage](#usage)
- - [Work Remaining](#work-remaining)
+ - [Credits](#credits)
   
 ## Overview
+
 **xeokit-gltf-to-xkt** converts models from glTF 2.0 to 
 [xeokit](http://xeokit.io)'s optimized ````.xkt```` format.
 
-An ````.xkt```` file is a single BLOB containing a model, compressed using quantization, oct-encoding and zlib. See the [XKT Format](https://github.com/xeokit/xeokit-sdk/wiki/XKT-Format) specification for a detailed description of the ````.xkt```` format.
+An ````.xkt```` file is a binary file that contains a single 3D model with full-precision geometry, compressed using quantization, 
+oct-encoding and zlib. 
+
+See the [XKT Format](https://github.com/xeokit/xeokit-sdk/wiki/XKT-Format) specification for a detailed description of the ````.xkt```` format.
 
 See [Creating Files for Offline BIM](https://github.com/xeokit/xeokit-sdk/wiki/Creating-Files-for-Offline-BIM) for instructions on converting IFC, DAE and glTF models to ````.xkt````.
 
