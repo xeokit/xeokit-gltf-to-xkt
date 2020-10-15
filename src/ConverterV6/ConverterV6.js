@@ -12,7 +12,7 @@ const {XKTModel, loadGLTFIntoXKTModel, writeXKTModelToArrayBuffer} = require("@x
 
 module.exports = {
     version: 6,
-    desc: "RTC coordinates; Geometry reuse; Oct-encoded normals; Quantized positions;",
+    desc: "Full-precision geometry; Geometry reuse; Oct-encoded normals; Quantized positions;",
     convert: async function convert(gltfPath, xktPath) {
 
         const contents = await new Promise((resolve, reject) => {

@@ -58,7 +58,7 @@ Options:
 Supported XKT Formats:
   1 - Oct-encoded normals; Quantized positions; No geometry reuse;
   3 - Geometry reuse; Oct-encoded normals; Quantized positions; (DEFAULT)
-  6 - RTC coordinates; Geometry reuse; Oct-encoded normals; Quantized positions;
+  6 - Full-precision geometry; Geometry reuse; Oct-encoded normals; Quantized positions;
 ```
 
 ### Programmatically
