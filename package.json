@@ -45,6 +45,7 @@
     },
     "homepage": "https://github.com/xeokit/xeokit-gltf-to-xkt#readme",
     "files": [
+        "/build",
         "/src",
         "/gltf2xkt.js"
     ]
