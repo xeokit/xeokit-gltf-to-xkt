@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 
-const fs = require('fs');
+const fs = require('fs').promises;
 const async = require('async');
 const commander = require('commander');
-const {getBasePath} = require('./src/lib/utils.js');
 
-const {converters, defaultConverter} = require('./src/index.js');
+const {converters, defaultConverter, getBasePath} = require('./lib/index.js');
 
 const program = new commander.Command();
 
@@ -66,24 +65,19 @@ console.log('\n\nReading glTF file: ' + program.source);
 console.log('Converting to XKT format: ' + converter.version);
 
 
-function getAttachment(name) {
-    return fs.readFileSync(gltfBasePath + name);
-}
+async function main() {
+    const gltfBasePath = getBasePath(program.source);
 
-async.waterfall([
-    function loadGltf(cb) {
-        fs.readFile(program.source, cb);
-    },
-    async function convertGltf(gltfContent) {
-        const gltfBasePath = getBasePath(program.source);
-        return converter.convert(gltfContent, getAttachment);
-    },
-    function saveXkt(xktContent, cb) {
-        fs.writeFile(program.output, xktContent, cb);
+    async function getAttachment(name, parsingContext) {
+        return fs.readFile(gltfBasePath + name);
     }
-], err => {
-    if(err) {
-        console.error('Something went wrong:', err);
-        process.exit(1);
-    }
+
+    const gltfContent = await fs.readFile(program.source);
+    const xktContent = await converter.convert(gltfContent, getAttachment);
+    await fs.writeFile(program.output, xktContent);
+};
+
+main().catch(err => {
+    console.error('Something went wrong:', err);
+    process.exit(1);
 });
