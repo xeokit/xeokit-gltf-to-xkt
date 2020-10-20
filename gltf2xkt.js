@@ -1,18 +1,11 @@
 #!/usr/bin/env node
 
+const fs = require('fs');
+const async = require('async');
 const commander = require('commander');
+const {getBasePath} = require('./src/lib/utils.js');
 
-const ConverterV1 = require('./build/ConverterV1.js');
-const ConverterV3 = require('./build/ConverterV3.js');
-const ConverterV6 = require('./build/ConverterV6.js');
-
-const converters = {};
-
-converters[ConverterV1.version] = ConverterV1;
-converters[ConverterV3.version] = ConverterV3;
-converters[ConverterV6.version] = ConverterV6;
-
-const defaultConverter = ConverterV3;
+const {converters, defaultConverter} = require('./src/index.js');
 
 const program = new commander.Command();
 
@@ -57,16 +50,6 @@ if (format !== undefined) {
     }
 }
 
-console.log('\n\nReading glTF file: ' + program.source);
-
-console.log('Converting to XKT format: ' + converter.version);
-
-converter
-    .convert(program.source, program.output)
-    .catch((error) => {
-        console.error('Something went wrong:', error);
-        process.exit(1);
-    });
 
 function logSupportedFormats() {
     console.log('\nSupported XKT Formats:');
@@ -77,3 +60,30 @@ function logSupportedFormats() {
     console.log();
 }
 
+
+console.log('\n\nReading glTF file: ' + program.source);
+
+console.log('Converting to XKT format: ' + converter.version);
+
+
+function getAttachment(name) {
+    return fs.readFileSync(gltfBasePath + name);
+}
+
+async.waterfall([
+    function loadGltf(cb) {
+        fs.readFile(program.source, cb);
+    },
+    async function convertGltf(gltfContent) {
+        const gltfBasePath = getBasePath(program.source);
+        return converter.convert(gltfContent, getAttachment);
+    },
+    function saveXkt(xktContent, cb) {
+        fs.writeFile(program.output, xktContent, cb);
+    }
+], err => {
+    if(err) {
+        console.error('Something went wrong:', err);
+        process.exit(1);
+    }
+});
