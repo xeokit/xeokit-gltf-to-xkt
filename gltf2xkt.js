@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 const fs = require('fs').promises;
-const async = require('async');
 const commander = require('commander');
 
 const {converters, defaultConverter, getBasePath} = require('./lib/index.js');

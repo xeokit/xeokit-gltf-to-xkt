@@ -5,7 +5,6 @@
     "main": "lib/index.js",
     "dependencies": {
         "@xeokit/xeokit-xkt-utils": "0.0.4",
-        "async": "^3.2.0",
         "atob": "^2.1.2",
         "commander": "^2.20.0",
         "compression": "^1.6.1",
