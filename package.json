@@ -4,7 +4,7 @@
     "description": "xeokit-gltf-to-xkt converts models from glTF 2.0 to xeokit's native .xkt geometry format.",
     "main": "src/index.js",
     "dependencies": {
-        "@xeokit/xeokit-xkt-utils": "0.0.4",
+        "@xeokit/xeokit-xkt-utils": "0.0.5",
         "atob": "^2.1.2",
         "commander": "^2.20.0",
         "compression": "^1.6.1",
