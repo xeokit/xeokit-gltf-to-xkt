@@ -40,7 +40,7 @@ Install locally or globally from `npm`.
 
 ```
 $ npm i @xeokit/xeokit-gltf-to-xkt
-$ gltf2xkt -s scene.gltf -o scene.xkt
+$ ./gltf2xkt -s scene.gltf -o scene.xkt
 ```
 
 ```
@@ -64,20 +64,28 @@ Supported XKT Formats:
 ### Programmatically
 
 ```javascript
-const Converter = require('gltf2xkt');
+const fs = require('fs').promises;
+const {converters, getBasePath} = require('@xeokit/xeokit-gltf-to-xkt');
 
-const gltfPath = '../bimspot/_sample-data/scene.gltf';
-const xktPath = 'scene.xkt';
-const gltf2xkt = new Converter(gltfPath, xktPath);
+const converter = converters[6]; // the key is the version number
 
-gltf2xkt
-  .convert()
-  .then(() => {
-    console.log('Success');
-  })
-  .catch((error) => {
-    console.error('Something went wrong:', error);
-  });
+async function main() {
+  const gltfContent = await fs.readFile('../files/my_model.gltf');
+  const gltfBasePath = getBasePath('../files/my_model.gltf'); // returns ../files/
+
+  async function getAttachment(uri, parsingContext) {
+    // This method we'll be called if the GLTF has an external resource. You may want to fetch them from disk or over network.
+    // uri is the URI defined in the GLTF, parsingContext is some context on the current parse
+    // If you know your gltf files don't use any eternal resource, you can call converter.convert(gltfContent) without this function.
+    return fs.readFile(gltfBasePath + uri);
+  }
+
+  const xktModel = await converter.convert(gltfContent, getAttachment);
+
+  await fs.writeFile('../files/my_model.xkt', xktModel);
+}
+
+main();
 ```
  
 ## Development
@@ -102,6 +110,6 @@ See `.eslint` and `.prettierrc` for code style guide.
 ## Credits
 
 - The ````xeokit-gltf-to-xkt```` tool and the 
-[XKTLoaderPlugin](https://xeokit.github.io/xeokit-sdk/docs/class/src/plugins/XKTLoaderPlugin/XKTLoaderPlugin.js~XKTLoaderPlugin.html) 
+[XKTLoaderPlugin](https://xeokit.github.io/xeokit-sdk/docs/class/src/plugins/XKTLoaderPlugin/XKTLoaderPlugin.js~XKTLoaderPlugin.html)
 are based on prototypes by [Toni Marti](https://github.com/tmarti) at [uniZite](https://www.unizite.com/login). Find the original discussion around those prototypes [here](https://github.com/xeokit/xeokit-sdk/issues/48#).
-- Thanks to [Adam Eri](https://github.com/eriadam) at [BIMSpot](https://bimspot.io/) for converting ````xeokit-gltf-to-xkt```` to work as a CLI tool.  
+- Thanks to [Adam Eri](https://github.com/eriadam) at [BIMSpot](https://bimspot.io/) for converting ````xeokit-gltf-to-xkt```` to work as a CLI tool.
