@@ -73,9 +73,9 @@ async function main() {
   const gltfContent = await fs.readFile('../files/my_model.gltf');
   const gltfBasePath = getBasePath('../files/my_model.gltf'); // returns ../files/
 
-  async function getAttachment(uri, parsingContext) {
+  async function getAttachment(uri) {
     // This method we'll be called if the GLTF has an external resource. You may want to fetch them from disk or over network.
-    // uri is the URI defined in the GLTF, parsingContext is some context on the current parse
+    // uri is the URI defined in the glTF
     // If you know your gltf files don't use any eternal resource, you can call converter.convert(gltfContent) without this function.
     return fs.readFile(gltfBasePath + uri);
   }
