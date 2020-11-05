@@ -22,7 +22,6 @@
         "gltf2xkt": "./gltf2xkt.js"
     },
     "scripts": {
-        "build": " rollup -c",
         "publish": "npm publish --access public"
     },
     "repository": {
