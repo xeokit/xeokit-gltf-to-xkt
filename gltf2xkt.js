@@ -2,12 +2,13 @@
 
 const fs = require('fs').promises;
 const commander = require('commander');
+const package = require('./package.json');
 
 const {converters, defaultConverter, getBasePath} = require('./lib/index.js');
 
 const program = new commander.Command();
 
-program.version('0.0.4', '-v, --version');
+program.version(package.version, '-v, --version');
 
 program
     .option('-s, --source [file]', 'path to the source glTF file')
