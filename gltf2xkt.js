@@ -4,7 +4,11 @@ const fs = require('fs').promises;
 const commander = require('commander');
 const package = require('./package.json');
 
-const {converters, defaultConverter, getBasePath} = require('./lib/index.js');
+const {
+    XKTModel,
+    parseGLTFIntoXKTModel,
+    writeXKTModelToArrayBuffer
+} = require("@xeokit/xeokit-xkt-utils/dist/xeokit-xkt-utils.cjs.js");
 
 const program = new commander.Command();
 
@@ -12,11 +16,10 @@ program.version(package.version, '-v, --version');
 
 program
     .option('-s, --source [file]', 'path to the source glTF file')
-    .option('-o, --output [file]', 'path to the target xkt file')
-    .option('-f  --format [number]', 'XKT format to write');
+    .option('-o, --output [file]', 'path to the target xkt file');
 
 program.on('--help', () => {
-    logSupportedFormats();
+
 });
 
 program.parse(process.argv);
@@ -33,37 +36,9 @@ if (program.output === undefined) {
     process.exit(1);
 }
 
-let format = program.format;
-let converter = null;
-
-if (format === undefined) {
-    converter = defaultConverter;
-}
-
-if (format !== undefined) {
-    converter = converters[format];
-    if (!converter) {
-        console.error('\nError: unsupported XKT format: ' + format);
-        logSupportedFormats();
-        process.exit(1);
-    }
-}
-
-
-function logSupportedFormats() {
-    console.log('\nSupported XKT Formats:');
-    for (let format in converters) {
-        const converter = converters[format];
-        console.log('  ' + converter.version + ' - ' + converter.desc + (defaultConverter.version === converter.version ? " (DEFAULT)" : ""));
-    }
-    console.log();
-}
-
-
 console.log('\n\nReading glTF file: ' + program.source);
 
-console.log('Converting to XKT format: ' + converter.version);
-
+console.log('Converting to XKT format v7');
 
 async function main() {
     const gltfBasePath = getBasePath(program.source);
@@ -73,9 +48,23 @@ async function main() {
     }
 
     const gltfContent = await fs.readFile(program.source);
-    const xktContent = await converter.convert(gltfContent, getAttachment);
+    const xktContent = await convert(gltfContent, getAttachment);
     await fs.writeFile(program.output, xktContent);
-};
+}
+
+async function convert(gltfContent, getAttachment) {
+    const xktModel = new XKTModel();
+    const gltf = JSON.parse(gltfContent);
+    await parseGLTFIntoXKTModel(gltf, xktModel, getAttachment);
+    xktModel.finalize();
+    const xktArrayBuffer = writeXKTModelToArrayBuffer(xktModel);
+    return Buffer.from(xktArrayBuffer);
+}
+
+function getBasePath(src) {
+    const i = src.lastIndexOf("/");
+    return (i !== 0) ? src.substring(0, i + 1) : "";
+}
 
 main().catch(err => {
     console.error('Something went wrong:', err);
