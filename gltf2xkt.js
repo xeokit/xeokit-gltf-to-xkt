@@ -42,11 +42,9 @@ console.log('Converting to XKT format v7');
 
 async function main() {
     const gltfBasePath = getBasePath(program.source);
-
     async function getAttachment(name, parsingContext) {
         return fs.readFile(gltfBasePath + name);
     }
-
     const gltfContent = await fs.readFile(program.source);
     const xktContent = await convert(gltfContent, getAttachment);
     await fs.writeFile(program.output, xktContent);
