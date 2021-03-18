@@ -4,7 +4,7 @@
     "description": "xeokit-gltf-to-xkt converts models from glTF 2.0 to xeokit's native .xkt geometry format.",
     "main": "lib/index.js",
     "dependencies": {
-        "@xeokit/xeokit-xkt-utils": "0.0.7",
+        "@xeokit/xeokit-xkt-utils": "1.0.0",
         "atob": "^2.1.2",
         "commander": "^2.20.0",
         "compression": "^1.6.1",
@@ -30,8 +30,13 @@
     },
     "keywords": [
         "xeokit",
+        "bim",
+        "ifc",
+        "pointclouds",
         "gltf",
-        "xkt"
+        "xkt",
+        "webgl",
+        "3d"
     ],
     "author": "xeokit",
     "license": "See LICENSE.txt",
