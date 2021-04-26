@@ -71,7 +71,7 @@ const {
     XKTModel,
     parseGLTFIntoXKTModel,
     writeXKTModelToArrayBuffer
-} = require("@xeokit/xeokit-xkt-utils/dist/xeokit-xkt-utils.cjs.js");
+} = require("@xeokit/xeokit-xkt-utils");
 
 async function main() {
 
