@@ -7,13 +7,6 @@
         "@xeokit/xeokit-xkt-utils": "1.1.1",
         "commander": "^2.20.0"
     },
-    "devDependencies": {
-        "autoprefixer": "^9.8.5",
-        "esdoc": "^1.1.0",
-        "esdoc-standard-plugin": "^1.0.0",
-        "eslint": "^6.8.0",
-        "prettier": "^1.19.1"
-    },
     "preferGlobal": true,
     "bin": {
         "gltf2xkt": "./gltf2xkt.js"
