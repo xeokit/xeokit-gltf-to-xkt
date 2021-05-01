@@ -1,14 +1,11 @@
 {
     "name": "@xeokit/xeokit-gltf-to-xkt",
     "version": "1.1.1",
-    "description": "xeokit-gltf-to-xkt converts models from glTF 2.0 to xeokit's native .xkt geometry format.",
-    "main": "lib/index.js",
+    "description": "xeokit-gltf-to-xkt converts models from glTF 2.0 to xeokit's native .XKT geometry format.",
+    "main": "gltf2xkt.js",
     "dependencies": {
         "@xeokit/xeokit-xkt-utils": "1.1.1",
-        "atob": "^2.1.2",
-        "commander": "^2.20.0",
-        "compression": "^1.6.1",
-        "pako": "^1.0.11"
+        "commander": "^2.20.0"
     },
     "devDependencies": {
         "autoprefixer": "^9.8.5",
@@ -38,14 +35,13 @@
         "webgl",
         "3d"
     ],
-    "author": "xeokit",
-    "license": "See LICENSE.txt",
+    "author": "xeolabs",
+    "license": "AGPL3",
     "bugs": {
         "url": "https://github.com/xeokit/xeokit-gltf-to-xkt/issues"
     },
     "homepage": "https://github.com/xeokit/xeokit-gltf-to-xkt#readme",
     "files": [
-        "/lib",
         "/gltf2xkt.js"
     ]
 }
