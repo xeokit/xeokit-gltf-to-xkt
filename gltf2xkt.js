@@ -7,7 +7,8 @@ const package = require('./package.json');
 const {
     XKTModel,
     parseGLTFIntoXKTModel,
-    writeXKTModelToArrayBuffer
+    writeXKTModelToArrayBuffer,
+    parseMetaModelIntoXKTModel
 } = require("@xeokit/xeokit-xkt-utils/dist/xeokit-xkt-utils.cjs.js");
 
 const program = new commander.Command();
@@ -15,8 +16,9 @@ const program = new commander.Command();
 program.version(package.version, '-v, --version');
 
 program
-    .option('-s, --source [file]', 'path to the source glTF file')
-    .option('-o, --output [file]', 'path to the target xkt file');
+    .option('-s, --source [file]', 'path to source glTF file')
+    .option('-m, --metamodel [file]', 'path to source metamodel JSON file (optional)')
+    .option('-o, --output [file]', 'path to target xkt file');
 
 program.on('--help', () => {
 
@@ -38,7 +40,7 @@ if (program.output === undefined) {
 
 console.log('\n\nReading glTF file: ' + program.source);
 
-console.log('Converting to XKT format v7');
+console.log('Converting to XKT format v8');
 
 async function main() {
     const gltfBasePath = getBasePath(program.source);
@@ -46,12 +48,20 @@ async function main() {
         return fs.readFile(gltfBasePath + name);
     }
     const gltfContent = await fs.readFile(program.source);
-    const xktContent = await convert(gltfContent, getAttachment);
+    let metaModelContent;
+    if (program.metamodel) {
+        const metaModelData = await fs.readFile(program.metamodel);
+        metaModelContent = JSON.parse(metaModelData);
+    }
+    const xktContent = await convert(gltfContent, metaModelContent, getAttachment);
     await fs.writeFile(program.output, xktContent);
 }
 
-async function convert(gltfContent, getAttachment) {
+async function convert(gltfContent, metaModelContent, getAttachment) {
     const xktModel = new XKTModel();
+    if (metaModelContent) {
+        await parseMetaModelIntoXKTModel(metaModelContent, xktModel);
+    }
     const gltf = JSON.parse(gltfContent);
     await parseGLTFIntoXKTModel(gltf, xktModel, getAttachment);
     xktModel.finalize();
