@@ -1,8 +1,6 @@
 -------------------------------------------------------------------------
 xeokit-gltf-to-xkt is part of the xeokit-sdk, which is licensed under
-the Affero GPL V3 license with the option to buy a license for commercial
-use. For more information on pricing and what is included in the
-xeokit SDK, see:
+the Affero GPL V3 license. For custom licensing, please see:
 
 https://xeokit.io/index.html#pricing
 -------------------------------------------------------------------------

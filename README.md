@@ -61,8 +61,8 @@ Options:
 
 ### Programmatically
 
-Since version ````0.1.0````, the ````gltf2xkt```` tool is a thin wrapper for ````xeokit-xkt-utils````, which does the
-real conversion work. To convert files programmatically, we now use the [````xeokit-xkt-utils````](https://github.com/xeokit/xeokit-xkt-utils) library directly.
+Since version ````0.1.0````, the ````gltf2xkt```` tool is a thin wrapper for ````xeokit-convert````, which does the
+real conversion work. To convert files programmatically, we now use the [````xeokit-convert````](https://github.com/xeokit/xeokit-convert) library directly.
 
 ```javascript
 const fs = require('fs').promises;
@@ -71,7 +71,7 @@ const {
     XKTModel,
     parseGLTFIntoXKTModel,
     writeXKTModelToArrayBuffer
-} = require("@xeokit/xeokit-xkt-utils/dist/xeokit-xkt-utils.cjs.js");
+} = require("@xeokit/xeokit-convert/dist/xeokit-convert.cjs.js");
 
 async function main() {
 
