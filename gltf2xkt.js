@@ -5,6 +5,7 @@ const commander = require('commander');
 const package = require('./package.json');
 
 const {
+    XKT_INFO,
     XKTModel,
     parseGLTFIntoXKTModel,
     writeXKTModelToArrayBuffer,
@@ -74,6 +75,7 @@ async function main() {
         const targetFileSizeBytes = xktArraybuffer.byteLength;
         stats.sourceSize = (sourceFileSizeBytes / 1000).toFixed(2) + " kB";
         stats.xktSize = (targetFileSizeBytes / 1000).toFixed(2) + " kB";
+        stats.xktVersion = XKT_INFO.xktVersion;
         stats.compressionRatio = (sourceFileSizeBytes / targetFileSizeBytes).toFixed(2);
         stats.conversionTime = ((new Date() - startTime) / 1000.0).toFixed(2) + " secs";
         for (let key in stats) {
