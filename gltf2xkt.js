@@ -90,7 +90,10 @@ async function main() {
 async function convert(gltfContent, metaModelContent, getAttachment, stats) {
     const xktModel = new XKTModel();
     if (metaModelContent) {
-        await parseMetaModelIntoXKTModel(metaModelContent, xktModel);
+        await parseMetaModelIntoXKTModel({
+          metaModelData: metaModelContent,
+          xktModel,
+        });
     }
     const gltf = JSON.parse(gltfContent);
     await parseGLTFIntoXKTModel({
