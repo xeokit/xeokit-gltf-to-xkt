@@ -11,7 +11,7 @@
 - [Usage](#usage)
 - [Credits](#credits)
 
-## Overview
+## Overview 
 
 **xeokit-gltf-to-xkt** converts models from glTF 2.0 to
 [xeokit](http://xeokit.io)'s optimized ````.xkt```` format.
